@@ -1,0 +1,68 @@
+name: Build release binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyinstaller
+      - run: pyinstaller --onefile --name install-fonts install_fonts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-fonts-windows
+          path: dist/install-fonts.exe
+
+  linux-binary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y python3-tk
+      - run: pip install pyinstaller
+      - run: pyinstaller --onefile --name install-fonts install_fonts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-fonts-linux
+          path: dist/install-fonts
+
+  macos-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        working-directory: mac-app
+        run: ./Scripts/build_app.sh
+      - name: Zip app bundle
+        working-directory: mac-app
+        run: ditto -c -k --sequesterRsrc --keepParent "Install Fonts.app" "Install-Fonts-macOS.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-fonts-macos
+          path: mac-app/Install-Fonts-macOS.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-exe, linux-binary, macos-app]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/install-fonts-windows/install-fonts.exe
+            artifacts/install-fonts-linux/install-fonts
+            artifacts/install-fonts-macos/Install-Fonts-macOS.zip
