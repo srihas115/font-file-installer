@@ -9,7 +9,7 @@ Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/r
 | Your computer | Download | How to run it |
 |---|---|---|
 | **Windows** | `install-fonts.exe` | Double-click it. A window opens, let you pick your fonts folder, and installs them — no install step needed. |
-| **Mac** | `Install-Fonts-macOS.zip` | Unzip it, then right-click **Install Fonts.app** → **Open** → **Open** (only needed the first time, since the app isn't from a paid Apple developer account). Drag your fonts folder onto the window, then click Install. |
+| **Mac** | `Install-Fonts-macOS.zip` | Unzip it. If macOS says the app **"is damaged and can't be opened,"** it isn't actually damaged — open Terminal and run `xattr -cr "/path/to/Install Fonts.app"` (drag the app into the Terminal window after typing `xattr -cr ` to fill in the path), then open it normally. This is a one-time step per download, needed because the app isn't signed by a paid Apple developer account. Drag your fonts folder onto the window, then click Install. |
 | **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
 
 That's it — no Python, no Xcode, no command line required.
