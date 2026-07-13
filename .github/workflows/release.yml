@@ -43,6 +43,9 @@ jobs:
       - name: Build app bundle
         working-directory: mac-app
         run: ./Scripts/build_app.sh
+      - name: Ad-hoc code-sign app bundle
+        working-directory: mac-app
+        run: codesign --force --deep --sign - "Install Fonts.app"
       - name: Zip app bundle
         working-directory: mac-app
         run: ditto -c -k --sequesterRsrc --keepParent "Install Fonts.app" "Install-Fonts-macOS.zip"
