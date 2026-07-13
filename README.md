@@ -1,21 +1,58 @@
 # font-file-installer
 
-Install a whole folder of fonts (`.otf`, `.ttf`, `.woff`, `.woff2`) in one go.
+Install a whole folder of fonts (`.otf`, `.ttf`, `.woff`, `.woff2`) in one go — on macOS, Windows, or Linux.
 
-## Get started
+## Get started (no technical background needed)
 
-1. Go to the [Releases page](https://github.com/srihas115/font-file-installer/releases/latest).
-2. Download the file for your operating system.
-3. Run it and select the folder with your fonts.
+Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/releases/latest) and download the file for your operating system:
 
-## Command line
+| Your computer | Download | How to run it |
+|---|---|---|
+| **Windows** | `install-fonts.exe` | Double-click it. A window opens, let you pick your fonts folder, and installs them — no install step needed. |
+| **Mac** | `Install-Fonts-macOS.zip` | Unzip it, then right-click **Install Fonts.app** → **Open** → **Open** (only needed the first time, since the app isn't from a paid Apple developer account). Drag your fonts folder onto the window, then click Install. |
+| **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
+
+That's it — no Python, no Xcode, no command line required.
+
+## For developers: command-line option
+
+Requires only Python 3 (standard library — no installs needed).
 
 ```bash
 python3 install_fonts.py [folder_path]
 ```
 
-Requires only Python 3. If you omit `folder_path`, a folder picker opens.
+- Omit `folder_path` to get a native folder picker dialog (macOS uses AppleScript; Windows/Linux use Tk).
+- Recursively finds font files and copies them into your user fonts directory:
+  - macOS: `~/Library/Fonts`
+  - Windows: `%LOCALAPPDATA%\Microsoft\Windows\Fonts` (also registers the font so it's usable immediately)
+  - Linux: `~/.local/share/fonts` (runs `fc-cache -f` afterward)
+- Skips files that already exist there (use `--force` to overwrite).
+- Prints a summary of found/installed/skipped/failed fonts.
+
+## For developers: Mac app source (drag-and-drop)
+
+A native SwiftUI app lives in [`mac-app/`](mac-app/). Build it yourself with:
+
+```bash
+cd mac-app
+./Scripts/build_app.sh
+open "Install Fonts.app"
+```
+
+This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds it (plus the Windows `.exe` and Linux binary via PyInstaller) automatically whenever a `v*` tag is pushed.
 
 ## License
 
 MIT
+
+## How this works
+
+This repo has two independent ways to install fonts, sharing one idea: recursively scan a folder for `.otf`/`.ttf`/`.woff`/`.woff2` files and copy each one into the current user's font directory, skipping anything already installed unless told to overwrite.
+
+- **[`install_fonts.py`](install_fonts.py)** — the core implementation, a single Python script using only the standard library. It detects the OS (`sys.platform`) and adjusts three things per platform: how it opens a folder picker (AppleScript on macOS, Tk on Windows/Linux), where the fonts directory lives (`~/Library/Fonts`, `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, or `~/.local/share/fonts`), and what extra step is needed after copying (Windows registry entry + `AddFontResource` call so the font works without a reboot; `fc-cache -f` on Linux to refresh the font cache). This same script is also what gets frozen into the Windows `.exe` and Linux binary — see below.
+- **[`mac-app/`](mac-app/)** — a native SwiftUI app that wraps the same install logic (`FontInstaller.swift` mirrors the scan/copy behavior of `install_fonts.py`) behind a window with a drag-and-drop target and a "Choose Folder" button, built with Swift Package Manager rather than a full Xcode project.
+
+Nothing here needs installing to build or run from source — the Python script only needs a Python 3 interpreter, and the Swift app only needs Xcode's Command Line Tools (`swift build`).
+
+**Getting pre-built downloads to the Releases page** is handled by [`.github/workflows/release.yml`](.github/workflows/release.yml), a GitHub Actions workflow that runs whenever a tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push origin v1.0.0`). It runs three jobs in parallel — freezing `install_fonts.py` into a standalone `.exe` on a Windows runner and a standalone binary on a Linux runner (both via PyInstaller, so end users don't need Python installed), and building/zipping the SwiftUI `.app` on a macOS runner — then a fourth job collects all three artifacts and publishes them as a GitHub Release. That's why the Releases page stays empty until a version tag is pushed: nothing runs on a plain commit to `main`.
