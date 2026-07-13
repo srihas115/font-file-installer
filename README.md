@@ -9,10 +9,32 @@ Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/r
 | Your computer | Download | How to run it |
 |---|---|---|
 | **Windows** | `install-fonts.exe` | Double-click it. A window opens, let you pick your fonts folder, and installs them — no install step needed. |
-| **Mac** | `Install-Fonts-macOS.zip` | Unzip it. If macOS says the app **"is damaged and can't be opened,"** it isn't actually damaged — open Terminal and run `xattr -cr "/path/to/Install Fonts.app"` (drag the app into the Terminal window after typing `xattr -cr ` to fill in the path), then open it normally. This is a one-time step per download, needed because the app isn't signed by a paid Apple developer account. Drag your fonts folder onto the window, then click Install. |
+| **Mac** | `Install-Fonts-macOS.zip` | Unzip it and open **Install Fonts.app**. If macOS blocks it, see [macOS Installation](#macos-installation) below — it's a one-time, one-command fix. Then drag your fonts folder onto the window and click Install. |
 | **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
 
 That's it — no Python, no Xcode, no command line required.
+
+## macOS Installation
+
+When you unzip `Install-Fonts-macOS.zip` and try to open **Install Fonts.app**, macOS may show:
+
+> **"Install Fonts.app" is damaged and can't be opened. You should move it to the Trash.**
+
+**Your download is not actually broken.** This message shows up because the app isn't signed with a paid Apple Developer certificate ($99/year — this project doesn't have one). macOS quarantines any unsigned app downloaded from a browser and, instead of a clear "unidentified developer" warning, newer versions of macOS show this scarier "damaged" message for unsigned apps. It's misleading, but the fix is quick:
+
+1. Open **Terminal** (Spotlight → search "Terminal").
+2. Type `xattr -cr "` (with the trailing space and quote), then drag **Install Fonts.app** from Finder into the Terminal window — this fills in the correct path automatically. Add a closing `"` and press Enter:
+   ```bash
+   xattr -cr "/Users/you/Downloads/Install Fonts.app"
+   ```
+3. Try opening the app again.
+
+If you still see a prompt at this point, it'll be the milder **"Install Fonts.app" is from an unidentified developer** warning rather than "damaged." To get past that one:
+
+1. **Right-click** (or Control-click) **Install Fonts.app** and choose **Open** — don't double-click.
+2. In the dialog that appears, click **Open** to confirm.
+
+You only need to do this once per download; after that, the app opens normally like any other.
 
 ## For developers: command-line option
 
