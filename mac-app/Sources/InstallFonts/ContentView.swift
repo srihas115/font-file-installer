@@ -18,7 +18,7 @@ struct ContentView: View {
             dropZone
 
             HStack {
-                Button("Choose Folder…") {
+                Button("Choose Folder or Zip…") {
                     chooseFolder()
                 }
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
@@ -65,7 +65,7 @@ struct ContentView: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                     } else {
-                        Text("Drag a folder here")
+                        Text("Drag a folder or .zip file here")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -122,14 +122,15 @@ struct ContentView: View {
 
             var isDirectory: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            let isZip = url.pathExtension.lowercased() == "zip"
 
             DispatchQueue.main.async {
-                if exists && isDirectory.boolValue {
+                if exists && (isDirectory.boolValue || isZip) {
                     self.selectedFolder = url
                     self.errorMessage = nil
                     self.result = nil
                 } else {
-                    self.errorMessage = "Please drop a folder, not a file."
+                    self.errorMessage = "Please drop a folder or a .zip file."
                 }
             }
         }
@@ -139,7 +140,8 @@ struct ContentView: View {
     private func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
-        panel.canChooseFiles = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.zip]
         panel.allowsMultipleSelection = false
         panel.prompt = "Select"
 
