@@ -21,24 +21,53 @@ let gradient = NSGradient(colors: [
 path.addClip()
 gradient.draw(in: iconRect, angle: -60)
 
-// Glyph: bold "Aa" to read as "fonts" at a glance.
-let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconRect.width * 0.52, weight: .bold)
-if let symbol = NSImage(systemSymbolName: "textformat", accessibilityDescription: nil)?
-    .withSymbolConfiguration(symbolConfig) {
-    let tinted = NSImage(size: symbol.size)
-    tinted.lockFocus()
-    NSColor.white.set()
-    let imageRect = NSRect(origin: .zero, size: symbol.size)
-    symbol.draw(in: imageRect)
-    imageRect.fill(using: .sourceAtop)
-    tinted.unlockFocus()
+// Wordmark: "FONT" / "INSTALLER" stacked, bold rounded, centered.
+let paragraphStyle = NSMutableParagraphStyle()
+paragraphStyle.alignment = .center
 
-    let glyphSize = tinted.size
-    let glyphOrigin = CGPoint(
-        x: iconRect.midX - glyphSize.width / 2,
-        y: iconRect.midY - glyphSize.height / 2
-    )
-    tinted.draw(at: glyphOrigin, from: .zero, operation: .sourceOver, fraction: 1.0)
+let lines = [
+    (text: "FONT", size: iconRect.width * 0.185),
+    (text: "INSTALLER", size: iconRect.width * 0.098),
+]
+
+let lineSpacing = iconRect.width * 0.045
+var renderedLines: [(image: NSImage, size: NSSize)] = []
+var totalHeight: CGFloat = 0
+
+for line in lines {
+    let font = NSFont.systemFont(ofSize: line.size, weight: .heavy).withRoundedDesignIfAvailable()
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor.white,
+        .paragraphStyle: paragraphStyle,
+        .kern: line.size * 0.02,
+    ]
+    let attributedString = NSAttributedString(string: line.text, attributes: attributes)
+    let lineSize = attributedString.size()
+
+    let lineImage = NSImage(size: lineSize)
+    lineImage.lockFocus()
+    attributedString.draw(at: .zero)
+    lineImage.unlockFocus()
+
+    renderedLines.append((lineImage, lineSize))
+    totalHeight += lineSize.height
+}
+totalHeight += lineSpacing * CGFloat(renderedLines.count - 1)
+
+var currentY = iconRect.midY + totalHeight / 2
+for (lineImage, lineSize) in renderedLines {
+    currentY -= lineSize.height
+    let origin = CGPoint(x: iconRect.midX - lineSize.width / 2, y: currentY)
+    lineImage.draw(at: origin, from: .zero, operation: .sourceOver, fraction: 1.0)
+    currentY -= lineSpacing
+}
+
+extension NSFont {
+    func withRoundedDesignIfAvailable() -> NSFont {
+        guard let descriptor = fontDescriptor.withDesign(.rounded) else { return self }
+        return NSFont(descriptor: descriptor, size: pointSize) ?? self
+    }
 }
 
 canvas.unlockFocus()
