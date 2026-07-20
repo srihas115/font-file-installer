@@ -12,8 +12,6 @@ Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/r
 | **Mac** | `Install-Fonts-macOS.zip` | Unzip it and open **Install Fonts.app**. If macOS blocks it, see [macOS Installation](#macos-installation) below — it's a one-time, one-command fix. Then drag your fonts folder onto the window and click Install. |
 | **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
 
-That's it — no Python, no Xcode, no command line required.
-
 ## macOS Installation
 
 When you unzip `Install-Fonts-macOS.zip` and try to open **Install Fonts.app**, macOS may show:
