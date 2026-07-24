@@ -7,6 +7,7 @@ struct GoogleFontsView: View {
     @State private var loadError: String?
 
     @State private var selectedFamily: FontFamily?
+    @State private var selectedFamilyIDs: Set<String> = []
     @State private var selectedWeights: Set<Int> = [400, 700]
     @State private var includeItalic = false
     @State private var forceOverwrite = false
@@ -43,18 +44,33 @@ struct GoogleFontsView: View {
                 .padding(.vertical, 16)
             } else {
                 List(filteredFamilies) { family in
-                    HStack {
-                        Text(family.family)
-                        Spacer()
-                        Text(family.category)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Button {
+                            toggleFamilySelection(family)
+                        } label: {
+                            Image(systemName: selectedFamilyIDs.contains(family.id) ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 15))
+                                .foregroundStyle(selectedFamilyIDs.contains(family.id) ? Color.accentColor : Color.secondary)
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .help(selectedFamilyIDs.contains(family.id) ? "Deselect" : "Select")
+
+                        HStack {
+                            Text(family.family)
+                            Spacer()
+                            Text(family.category)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectOnlyFamily(family)
+                        }
                     }
-                    .contentShape(Rectangle())
-                    .background(family == selectedFamily ? Color.accentColor.opacity(0.15) : Color.clear)
-                    .onTapGesture {
-                        selectFamily(family)
-                    }
+                    .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
                 }
                 .frame(minHeight: 200, maxHeight: 260)
             }
@@ -101,24 +117,54 @@ struct GoogleFontsView: View {
             HStack {
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                 Spacer()
-                Button(isInstalling ? "Installing…" : "Install") {
-                    install(family)
+                Button(isInstalling ? "Installing…" : installButtonTitle) {
+                    installSelectedFamilies()
                 }
-                .disabled(isInstalling || selectedWeights.isEmpty)
+                .disabled(isInstalling || selectedFamilyIDs.isEmpty || selectedWeights.isEmpty)
                 .keyboardShortcut(.defaultAction)
             }
         }
     }
 
-    private func selectFamily(_ family: FontFamily) {
+    private var installButtonTitle: String {
+        selectedFamilyIDs.count > 1 ? "Install Selected" : "Install"
+    }
+
+    private func selectOnlyFamily(_ family: FontFamily) {
+        selectedFamilyIDs = [family.id]
+        focusFamily(family)
+    }
+
+    private func toggleFamilySelection(_ family: FontFamily) {
+        if selectedFamilyIDs.contains(family.id) {
+            selectedFamilyIDs.remove(family.id)
+            if selectedFamily?.id == family.id {
+                selectedFamily = families.first { selectedFamilyIDs.contains($0.id) }
+                if let selectedFamily {
+                    setDefaultWeights(for: selectedFamily)
+                }
+            }
+        } else {
+            selectedFamilyIDs.insert(family.id)
+            focusFamily(family)
+        }
+        installResult = nil
+        installError = nil
+    }
+
+    private func focusFamily(_ family: FontFamily) {
         selectedFamily = family
         installResult = nil
         installError = nil
+        setDefaultWeights(for: family)
+        includeItalic = false
+    }
+
+    private func setDefaultWeights(for family: FontFamily) {
         let available = Set(weights(for: family))
         selectedWeights = available.contains(400) || available.contains(700)
             ? available.intersection([400, 700])
             : Set(available.prefix(1))
-        includeItalic = false
     }
 
     private func weights(for family: FontFamily) -> [Int] {
@@ -157,30 +203,43 @@ struct GoogleFontsView: View {
         isLoadingCatalog = false
     }
 
-    private func install(_ family: FontFamily) {
+    private func installSelectedFamilies() {
+        let selectedFamilies = families.filter { selectedFamilyIDs.contains($0.id) }
+        guard !selectedFamilies.isEmpty else { return }
+
         isInstalling = true
         installError = nil
         installResult = nil
 
-        let weights = selectedWeights.map { FontWeight(weight: $0, italic: false) }
-            + (includeItalic ? selectedWeights.map { FontWeight(weight: $0, italic: true) } : [])
         let force = forceOverwrite
+        let requestedWeights = selectedWeights
+        let shouldIncludeItalic = includeItalic
 
         // Detached so the network calls and the synchronous file-copy work in
         // FontInstaller.install run off the main actor, matching how
         // ContentView.runInstall() offloads the same call to a background queue.
         Task.detached {
+            var combinedResult = InstallResult()
             do {
-                let entries = try await GoogleFontsCatalog.resolveFontFiles(family: family.family, weights: weights)
-                guard !entries.isEmpty else {
-                    throw GoogleFontsCatalog.CatalogError.invalidResponse
-                }
-                let tempDir = try await GoogleFontsCatalog.downloadFonts(entries, family: family.family)
-                defer { try? FileManager.default.removeItem(at: tempDir) }
+                for family in selectedFamilies {
+                    let weights = googleWeightsToInstall(
+                        for: family,
+                        selectedWeights: requestedWeights,
+                        includeItalic: shouldIncludeItalic
+                    )
+                    let entries = try await GoogleFontsCatalog.resolveFontFiles(family: family.family, weights: weights)
+                    guard !entries.isEmpty else {
+                        throw GoogleFontsCatalog.CatalogError.invalidResponse
+                    }
+                    let tempDir = try await GoogleFontsCatalog.downloadFonts(entries, family: family.family)
+                    defer { try? FileManager.default.removeItem(at: tempDir) }
 
-                let outcome = FontInstaller.install(from: tempDir, force: force)
+                    combinedResult.append(FontInstaller.install(from: tempDir, force: force))
+                }
+
+                let finalResult = combinedResult
                 await MainActor.run {
-                    installResult = outcome
+                    installResult = finalResult
                     isInstalling = false
                 }
             } catch {
@@ -191,4 +250,25 @@ struct GoogleFontsView: View {
             }
         }
     }
+}
+
+private func googleWeightsToInstall(
+    for family: FontFamily,
+    selectedWeights: Set<Int>,
+    includeItalic: Bool
+) -> [FontWeight] {
+    let variants = family.variants
+    let availableWeights = Set(variants.compactMap { variant -> Int? in
+        let cleaned = variant.replacingOccurrences(of: "italic", with: "")
+        if cleaned.isEmpty || cleaned == "regular" { return 400 }
+        return Int(cleaned)
+    })
+    let usableWeights = selectedWeights.intersection(availableWeights)
+    let resolvedWeights = usableWeights.isEmpty
+        ? Set([availableWeights.contains(400) ? 400 : (availableWeights.sorted().first ?? 400)])
+        : usableWeights
+    let hasItalic = variants.contains { $0.contains("italic") }
+
+    return resolvedWeights.map { FontWeight(weight: $0, italic: false) }
+        + (includeItalic && hasItalic ? resolvedWeights.map { FontWeight(weight: $0, italic: true) } : [])
 }

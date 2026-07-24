@@ -5,6 +5,13 @@ struct InstallResult {
     var installed: [String] = []
     var skipped: [String] = []
     var failed: [(name: String, reason: String)] = []
+
+    mutating func append(_ other: InstallResult) {
+        found.append(contentsOf: other.found)
+        installed.append(contentsOf: other.installed)
+        skipped.append(contentsOf: other.skipped)
+        failed.append(contentsOf: other.failed)
+    }
 }
 
 enum FontInstaller {

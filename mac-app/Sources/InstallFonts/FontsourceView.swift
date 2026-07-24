@@ -7,6 +7,7 @@ struct FontsourceView: View {
     @State private var loadError: String?
 
     @State private var selectedFamily: FontsourceFamily?
+    @State private var selectedFamilyIDs: Set<String> = []
     @State private var selectedWeights: Set<Int> = [400, 700]
     @State private var includeItalic = false
     @State private var forceOverwrite = false
@@ -46,18 +47,33 @@ struct FontsourceView: View {
                 .padding(.vertical, 16)
             } else {
                 List(filteredFamilies) { family in
-                    HStack {
-                        Text(family.family)
-                        Spacer()
-                        Text(family.category)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Button {
+                            toggleFamilySelection(family)
+                        } label: {
+                            Image(systemName: selectedFamilyIDs.contains(family.id) ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 15))
+                                .foregroundStyle(selectedFamilyIDs.contains(family.id) ? Color.accentColor : Color.secondary)
+                                .frame(width: 20, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .help(selectedFamilyIDs.contains(family.id) ? "Deselect" : "Select")
+
+                        HStack {
+                            Text(family.family)
+                            Spacer()
+                            Text(family.category)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectOnlyFamily(family)
+                        }
                     }
-                    .contentShape(Rectangle())
-                    .background(family == selectedFamily ? Color.accentColor.opacity(0.15) : Color.clear)
-                    .onTapGesture {
-                        selectFamily(family)
-                    }
+                    .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
                 }
                 .frame(minHeight: 200, maxHeight: 260)
             }
@@ -101,24 +117,54 @@ struct FontsourceView: View {
             HStack {
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                 Spacer()
-                Button(isInstalling ? "Installing…" : "Install") {
-                    install(family)
+                Button(isInstalling ? "Installing…" : installButtonTitle) {
+                    installSelectedFamilies()
                 }
-                .disabled(isInstalling || selectedWeights.isEmpty)
+                .disabled(isInstalling || selectedFamilyIDs.isEmpty || selectedWeights.isEmpty)
                 .keyboardShortcut(.defaultAction)
             }
         }
     }
 
-    private func selectFamily(_ family: FontsourceFamily) {
+    private var installButtonTitle: String {
+        selectedFamilyIDs.count > 1 ? "Install Selected" : "Install"
+    }
+
+    private func selectOnlyFamily(_ family: FontsourceFamily) {
+        selectedFamilyIDs = [family.id]
+        focusFamily(family)
+    }
+
+    private func toggleFamilySelection(_ family: FontsourceFamily) {
+        if selectedFamilyIDs.contains(family.id) {
+            selectedFamilyIDs.remove(family.id)
+            if selectedFamily?.id == family.id {
+                selectedFamily = families.first { selectedFamilyIDs.contains($0.id) }
+                if let selectedFamily {
+                    setDefaultWeights(for: selectedFamily)
+                }
+            }
+        } else {
+            selectedFamilyIDs.insert(family.id)
+            focusFamily(family)
+        }
+        installResult = nil
+        installError = nil
+    }
+
+    private func focusFamily(_ family: FontsourceFamily) {
         selectedFamily = family
         installResult = nil
         installError = nil
+        setDefaultWeights(for: family)
+        includeItalic = false
+    }
+
+    private func setDefaultWeights(for family: FontsourceFamily) {
         let available = Set(family.weights)
         selectedWeights = available.contains(400) || available.contains(700)
             ? available.intersection([400, 700])
             : Set(available.prefix(1))
-        includeItalic = false
     }
 
     private func weightBinding(_ weight: Int) -> Binding<Bool> {
@@ -145,24 +191,36 @@ struct FontsourceView: View {
         isLoadingCatalog = false
     }
 
-    private func install(_ family: FontsourceFamily) {
+    private func installSelectedFamilies() {
+        let selectedFamilies = families.filter { selectedFamilyIDs.contains($0.id) }
+        guard !selectedFamilies.isEmpty else { return }
+
         isInstalling = true
         installError = nil
         installResult = nil
 
-        let weights = selectedWeights.map { FontWeight(weight: $0, italic: false) }
-            + (includeItalic ? selectedWeights.map { FontWeight(weight: $0, italic: true) } : [])
         let force = forceOverwrite
+        let requestedWeights = selectedWeights
+        let shouldIncludeItalic = includeItalic
 
         Task.detached {
+            var combinedResult = InstallResult()
             do {
-                let entries = try await FontsourceCatalog.resolveFontFiles(family: family, weights: weights)
-                let tempDir = try await FontsourceCatalog.downloadFonts(entries, family: family.family)
-                defer { try? FileManager.default.removeItem(at: tempDir) }
+                for family in selectedFamilies {
+                    let weights = fontsourceWeightsToInstall(
+                        for: family,
+                        selectedWeights: requestedWeights,
+                        includeItalic: shouldIncludeItalic
+                    )
+                    let entries = try await FontsourceCatalog.resolveFontFiles(family: family, weights: weights)
+                    let tempDir = try await FontsourceCatalog.downloadFonts(entries, family: family.family)
+                    defer { try? FileManager.default.removeItem(at: tempDir) }
 
-                let outcome = FontInstaller.install(from: tempDir, force: force)
+                    combinedResult.append(FontInstaller.install(from: tempDir, force: force))
+                }
+                let finalResult = combinedResult
                 await MainActor.run {
-                    installResult = outcome
+                    installResult = finalResult
                     isInstalling = false
                 }
             } catch {
@@ -173,4 +231,20 @@ struct FontsourceView: View {
             }
         }
     }
+}
+
+private func fontsourceWeightsToInstall(
+    for family: FontsourceFamily,
+    selectedWeights: Set<Int>,
+    includeItalic: Bool
+) -> [FontWeight] {
+    let availableWeights = Set(family.weights)
+    let usableWeights = selectedWeights.intersection(availableWeights)
+    let resolvedWeights = usableWeights.isEmpty
+        ? Set([availableWeights.contains(400) ? 400 : (availableWeights.sorted().first ?? 400)])
+        : usableWeights
+    let hasItalic = family.styles.contains("italic")
+
+    return resolvedWeights.map { FontWeight(weight: $0, italic: false) }
+        + (includeItalic && hasItalic ? resolvedWeights.map { FontWeight(weight: $0, italic: true) } : [])
 }
