@@ -29,7 +29,7 @@ struct AboutView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 12) {
-                    iconButton(label: "GitHub", imageName: "GitHub_Invertocat_Black", url: repoURL)
+                    iconButton(label: "GitHub Repo", imageName: "GitHub_Invertocat_Black", url: repoURL)
                     iconButton(label: "LinkedIn", imageName: "linkedin-svgrepo-com", url: linkedInURL)
                     iconButton(label: "GitHub Sponsors", imageName: "donate-heart-svgrepo-com", url: sponsorURL)
                     iconButton(label: "Buy Me a Coffee", imageName: "bmc-logo", url: coffeeURL)
