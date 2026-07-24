@@ -9,7 +9,7 @@ struct InstallFontsApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(updateController)
-                .frame(minWidth: 600, minHeight: 260)
+                .frame(minWidth: 600, maxWidth: 760, minHeight: 260, maxHeight: 520)
         }
         .defaultSize(width: 650, height: 280)
         .windowResizability(.contentSize)
