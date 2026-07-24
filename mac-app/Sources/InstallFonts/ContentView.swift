@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -14,12 +15,26 @@ struct ContentView: View {
     @State private var isInstalling = false
     @State private var result: InstallResult?
     @State private var errorMessage: String?
+    @State private var isCheckingUpdates = false
+    @State private var updateAlertTitle = "Updates"
+    @State private var updateAlertMessage = ""
+    @State private var updateReleaseURL: URL?
+    @State private var showingUpdateAlert = false
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Install Fonts")
-                .font(.title2)
-                .bold()
+            HStack {
+                Spacer()
+                Text("Install Fonts")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button(isCheckingUpdates ? "Checking…" : "Updates") {
+                    checkForUpdates()
+                }
+                .disabled(isCheckingUpdates)
+                .help("Check for updates")
+            }
 
             Picker("", selection: $mode) {
                 ForEach(InstallMode.allCases, id: \.self) { option in
@@ -38,6 +53,16 @@ struct ContentView: View {
             Spacer()
         }
         .padding(20)
+        .alert(updateAlertTitle, isPresented: $showingUpdateAlert) {
+            if let updateReleaseURL {
+                Button("Open Releases") {
+                    NSWorkspace.shared.open(updateReleaseURL)
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(updateAlertMessage)
+        }
     }
 
     private var folderInstallView: some View {
@@ -158,6 +183,36 @@ struct ContentView: View {
                 self.isInstalling = false
                 if outcome.found.isEmpty {
                     self.errorMessage = "No font files (.otf, .ttf, .woff, .woff2) found in that folder."
+                }
+            }
+        }
+    }
+
+    private func checkForUpdates() {
+        isCheckingUpdates = true
+        Task {
+            do {
+                let result = try await UpdateChecker.check()
+                await MainActor.run {
+                    if result.isUpdateAvailable {
+                        updateAlertTitle = "Update Available"
+                        updateAlertMessage = "You have \(result.currentVersion). The latest release is \(result.latestVersion)."
+                        updateReleaseURL = result.releaseURL
+                    } else {
+                        updateAlertTitle = "You're Up to Date"
+                        updateAlertMessage = "You have \(result.currentVersion), which matches the latest release."
+                        updateReleaseURL = nil
+                    }
+                    showingUpdateAlert = true
+                    isCheckingUpdates = false
+                }
+            } catch {
+                await MainActor.run {
+                    updateAlertTitle = "Couldn't Check for Updates"
+                    updateAlertMessage = error.localizedDescription
+                    updateReleaseURL = nil
+                    showingUpdateAlert = true
+                    isCheckingUpdates = false
                 }
             }
         }

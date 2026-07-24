@@ -3,6 +3,8 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -127,6 +129,42 @@ class SourceResolutionTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 install_fonts.resolve_source_directory(zip_path)
+
+
+class UpdateCheckTests(unittest.TestCase):
+    def test_is_newer_version_handles_v_prefix_and_missing_patch(self):
+        self.assertTrue(install_fonts.is_newer_version("v1.2.0", "1.1.9"))
+        self.assertTrue(install_fonts.is_newer_version("1.2.1", "v1.2"))
+        self.assertFalse(install_fonts.is_newer_version("v1.2.0", "1.2"))
+        self.assertFalse(install_fonts.is_newer_version("1.0.0", "1.0.1"))
+
+    def test_fetch_latest_release_info_parses_github_response(self):
+        def fake_fetch(url, timeout=15, retries=1, backoff=1.0):
+            self.assertEqual(url, install_fonts.GITHUB_LATEST_RELEASE_API)
+            return b'{"tag_name":"v2.0.0","html_url":"https://example.test/release","name":"Version 2"}'
+
+        self.assertEqual(
+            install_fonts.fetch_latest_release_info(fetch_url=fake_fetch),
+            {
+                "tag_name": "v2.0.0",
+                "html_url": "https://example.test/release",
+                "name": "Version 2",
+            },
+        )
+
+    def test_print_update_status_reports_available_update(self):
+        def fake_fetch(url, timeout=15, retries=1, backoff=1.0):
+            return b'{"tag_name":"v2.0.0","html_url":"https://example.test/release"}'
+
+        output = StringIO()
+        with redirect_stdout(output):
+            exit_code = install_fonts.print_update_status(
+                current_version="1.0.0",
+                fetch_url=fake_fetch,
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Update available: https://example.test/release", output.getvalue())
 
 
 if __name__ == "__main__":

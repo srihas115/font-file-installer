@@ -40,6 +40,7 @@ Requires only Python 3 (standard library — no installs needed).
 
 ```bash
 python3 install_fonts.py [folder_or_zip_path]
+python3 install_fonts.py --check-updates
 ```
 
 - Omit `folder_or_zip_path` to get a native folder picker dialog (macOS uses AppleScript; Windows/Linux use Tk).
@@ -49,6 +50,7 @@ python3 install_fonts.py [folder_or_zip_path]
   - Windows: `%LOCALAPPDATA%\Microsoft\Windows\Fonts` (also registers the font so it's usable immediately)
   - Linux: `~/.local/share/fonts` (runs `fc-cache -f` afterward)
 - Skips files that already exist there (use `--force` to overwrite).
+- Checks GitHub Releases for a newer version with `--check-updates`.
 - Prints a summary of found/installed/skipped/failed fonts.
 
 ### Installing straight from Google Fonts
@@ -71,6 +73,8 @@ cd mac-app
 ./Scripts/build_app.sh
 open "Install Fonts.app"
 ```
+
+Use the **Updates** button in the app to check GitHub Releases for a newer download.
 
 This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds it (plus the Windows `.exe` and Linux binary via PyInstaller) automatically whenever a `v*` tag is pushed.
 

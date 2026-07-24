@@ -29,6 +29,9 @@ USER_AGENT = "font-file-installer/1.0"
 GOOGLE_METADATA_URL = "https://fonts.google.com/metadata/fonts"
 GOOGLE_CSS_URL = "https://fonts.googleapis.com/css2"
 CATALOG_CACHE_TTL_SECONDS = 7 * 24 * 3600
+APP_VERSION = "1.1.0"
+GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/srihas115/font-file-installer/releases/latest"
+GITHUB_RELEASES_URL = "https://github.com/srihas115/font-file-installer/releases/latest"
 
 
 def get_fonts_dir() -> Path:
@@ -215,6 +218,63 @@ def _fetch_url(url: str, timeout: float = 15, retries: int = 1, backoff: float =
                 time.sleep(backoff)
     assert last_error is not None
     raise last_error
+
+
+def normalize_version(version: str) -> str:
+    return version.strip().lstrip("vV")
+
+
+def version_parts(version: str):
+    parts = []
+    for token in re.split(r"[.-]", normalize_version(version)):
+        if not token:
+            continue
+        if token.isdigit():
+            parts.append(int(token))
+        else:
+            break
+    return tuple(parts or [0])
+
+
+def is_newer_version(latest: str, current: str) -> bool:
+    latest_parts = version_parts(latest)
+    current_parts = version_parts(current)
+    length = max(len(latest_parts), len(current_parts))
+    latest_parts += (0,) * (length - len(latest_parts))
+    current_parts += (0,) * (length - len(current_parts))
+    return latest_parts > current_parts
+
+
+def fetch_latest_release_info(fetch_url=_fetch_url) -> dict:
+    raw = fetch_url(GITHUB_LATEST_RELEASE_API, timeout=10, retries=0).decode("utf-8")
+    release = json.loads(raw)
+    tag_name = release.get("tag_name")
+    if not tag_name:
+        raise RuntimeError("GitHub returned a release without a tag name.")
+    return {
+        "tag_name": tag_name,
+        "html_url": release.get("html_url") or GITHUB_RELEASES_URL,
+        "name": release.get("name") or tag_name,
+    }
+
+
+def print_update_status(current_version: str = APP_VERSION, fetch_url=_fetch_url) -> int:
+    try:
+        release = fetch_latest_release_info(fetch_url=fetch_url)
+    except (RuntimeError, json.JSONDecodeError, UnicodeDecodeError, urllib.error.URLError, OSError) as e:
+        print(f"Could not check for updates: {e}")
+        return 1
+
+    latest = release["tag_name"]
+    print(f"Current version: {current_version}")
+    print(f"Latest release:  {latest}")
+
+    if is_newer_version(latest, current_version):
+        print(f"Update available: {release['html_url']}")
+    else:
+        print("You're up to date.")
+
+    return 0
 
 
 def fetch_google_catalog(force_refresh: bool = False) -> dict:
@@ -428,7 +488,15 @@ def main():
         action="store_true",
         help="Force re-downloading the cached Google Fonts catalog before resolving --google families.",
     )
+    parser.add_argument(
+        "--check-updates",
+        action="store_true",
+        help="Check GitHub Releases for a newer version and exit.",
+    )
     args = parser.parse_args()
+
+    if args.check_updates:
+        sys.exit(print_update_status())
 
     google_temp_folder = None
     zip_temp_folder = None
