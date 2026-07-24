@@ -25,7 +25,7 @@ struct FontsourceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             TextField("Search Fontsource…", text: $searchText)
                 .textFieldStyle(.roundedBorder)
 
@@ -75,6 +75,8 @@ struct FontsourceView: View {
                     }
                     .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .frame(minHeight: 120, maxHeight: .infinity)
             }
 

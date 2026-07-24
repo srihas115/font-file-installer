@@ -22,7 +22,7 @@ struct GoogleFontsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             TextField("Search Google Fonts…", text: $searchText)
                 .textFieldStyle(.roundedBorder)
 
@@ -72,6 +72,8 @@ struct GoogleFontsView: View {
                     }
                     .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .frame(minHeight: 120, maxHeight: .infinity)
             }
 
