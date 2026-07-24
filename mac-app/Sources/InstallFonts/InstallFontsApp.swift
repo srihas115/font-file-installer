@@ -5,8 +5,9 @@ struct InstallFontsApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .frame(minWidth: 480, minHeight: 420)
+                .frame(minWidth: 200, minHeight: 420)
         }
+        .defaultSize(width: 340, height: 420)
         .windowResizability(.contentSize)
     }
 }
