@@ -74,7 +74,9 @@ Implementation split:
 ```bash
 # Python / CLI (all platforms)
 python3 install_fonts.py [folder_path]
+python3 install_fonts.py [font_zip_path]
 python3 install_fonts.py --google Roboto "Open Sans:700,400i"
+python3 -m unittest discover -s tests
 
 # macOS app
 cd mac-app
@@ -82,9 +84,9 @@ cd mac-app
 open "Install Fonts.app"
 ```
 
-There is no test suite in this repo. Verify changes by actually running the script/app
-and checking installed fonts show up (Font Book on macOS, Windows font settings, or
-`fc-list` on Linux).
+The Python test suite covers pure logic and safe source resolution. For changes that
+actually install fonts, also verify manually by running the script/app and checking
+installed fonts show up (Font Book on macOS, Windows font settings, or `fc-list` on Linux).
 
 ## Conventions
 

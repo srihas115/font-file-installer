@@ -6,6 +6,7 @@ Works on macOS, Windows, and Linux using only the Python standard library.
 
 import argparse
 import difflib
+import importlib
 import json
 import re
 import shutil
@@ -16,6 +17,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -121,32 +123,66 @@ def find_font_files(folder: Path):
     )
 
 
+def resolve_source_directory(source: Path):
+    """Return a directory to scan, extracting a .zip file to a temp directory when needed."""
+    if source.suffix.lower() != ".zip":
+        return source, None
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="install_fonts_zip_"))
+    try:
+        with zipfile.ZipFile(source) as archive:
+            _extract_zip_safely(archive, temp_dir)
+    except (OSError, ValueError, zipfile.BadZipFile):
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    return temp_dir, temp_dir
+
+
+def _extract_zip_safely(archive: zipfile.ZipFile, dest_dir: Path) -> None:
+    dest_root = dest_dir.resolve()
+    for member in archive.infolist():
+        member_path = dest_root / member.filename
+        try:
+            member_path.resolve().relative_to(dest_root)
+        except ValueError as e:
+            raise ValueError(f"zip file contains an unsafe path: {member.filename}") from e
+    archive.extractall(dest_root)
+
+
 def register_font_windows(dest: Path) -> None:
     """Register a font with Windows so apps pick it up without a reboot."""
     import ctypes
-    import winreg
+
+    winreg = importlib.import_module("winreg")
+    open_key = getattr(winreg, "OpenKey")
+    set_value = getattr(winreg, "SetValueEx")
+    hkey_current_user = getattr(winreg, "HKEY_CURRENT_USER")
+    key_set_value = getattr(winreg, "KEY_SET_VALUE")
+    reg_sz = getattr(winreg, "REG_SZ")
 
     suffix = dest.suffix.lower()
     kind = "OpenType" if suffix == ".otf" else "TrueType"
     value_name = f"{dest.stem} ({kind})"
 
     try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
+        with open_key(
+            hkey_current_user,
             r"Software\Microsoft\Windows NT\CurrentVersion\Fonts",
             0,
-            winreg.KEY_SET_VALUE,
+            key_set_value,
         ) as key:
-            winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, str(dest))
+            set_value(key, value_name, 0, reg_sz, str(dest))
     except OSError:
         pass  # Font file is still copied even if registry entry fails
 
-    gdi32 = ctypes.windll.gdi32
+    windll = getattr(ctypes, "windll")
+    gdi32 = windll.gdi32
     gdi32.AddFontResourceW(str(dest))
 
     HWND_BROADCAST = 0xFFFF
     WM_FONTCHANGE = 0x001D
-    ctypes.windll.user32.SendMessageW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0)
+    windll.user32.SendMessageW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0)
 
 
 def refresh_font_cache_linux() -> Optional[str]:
@@ -363,13 +399,14 @@ def prepare_google_fonts_folder(specs, force_refresh: bool = False) -> Path:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Install a folder of fonts into your user fonts directory."
+        description="Install a folder or .zip file of fonts into your user fonts directory."
     )
     parser.add_argument(
         "folder_path",
+        metavar="folder_or_zip_path",
         nargs="?",
         default=None,
-        help="Folder to scan for fonts. If omitted, a folder picker dialog opens.",
+        help="Folder or .zip file to scan for fonts. If omitted, a folder picker dialog opens.",
     )
     parser.add_argument(
         "--force",
@@ -394,6 +431,7 @@ def main():
     args = parser.parse_args()
 
     google_temp_folder = None
+    zip_temp_folder = None
     if args.google:
         google_temp_folder = prepare_google_fonts_folder(args.google, force_refresh=args.refresh_catalog)
         folder = google_temp_folder
@@ -404,10 +442,22 @@ def main():
 
     try:
         if not folder.exists():
-            print(f"Error: folder does not exist: {folder}")
+            print(f"Error: path does not exist: {folder}")
             sys.exit(1)
-        if not folder.is_dir():
-            print(f"Error: not a folder: {folder}")
+        if not folder.is_dir() and folder.suffix.lower() != ".zip":
+            print(f"Error: not a folder or .zip file: {folder}")
+            sys.exit(1)
+
+        try:
+            folder, zip_temp_folder = resolve_source_directory(folder)
+        except zipfile.BadZipFile:
+            print(f"Error: not a valid .zip file: {folder}")
+            sys.exit(1)
+        except ValueError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        except OSError as e:
+            print(f"Error: could not extract .zip file {folder}: {e}")
             sys.exit(1)
 
         try:
@@ -492,6 +542,8 @@ def main():
     finally:
         if google_temp_folder:
             shutil.rmtree(google_temp_folder, ignore_errors=True)
+        if zip_temp_folder:
+            shutil.rmtree(zip_temp_folder, ignore_errors=True)
 
 
 if __name__ == "__main__":
