@@ -9,6 +9,8 @@ enum InstallMode: String, CaseIterable {
 }
 
 struct ContentView: View {
+    @EnvironmentObject private var updateController: UpdateCheckController
+
     @State private var mode: InstallMode = .folder
     @State private var selectedFolder: URL?
     @State private var isTargeted = false
@@ -16,11 +18,6 @@ struct ContentView: View {
     @State private var isInstalling = false
     @State private var result: InstallResult?
     @State private var errorMessage: String?
-    @State private var isCheckingUpdates = false
-    @State private var updateAlertTitle = "Updates"
-    @State private var updateAlertMessage = ""
-    @State private var updateReleaseURL: URL?
-    @State private var showingUpdateAlert = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -47,15 +44,15 @@ struct ContentView: View {
             Spacer()
         }
         .padding(20)
-        .alert(updateAlertTitle, isPresented: $showingUpdateAlert) {
-            if let updateReleaseURL {
+        .alert(updateController.alertTitle, isPresented: $updateController.isShowingAlert) {
+            if let releaseURL = updateController.releaseURL {
                 Button("Open Releases") {
-                    NSWorkspace.shared.open(updateReleaseURL)
+                    NSWorkspace.shared.open(releaseURL)
                 }
             }
             Button("OK", role: .cancel) {}
         } message: {
-            Text(updateAlertMessage)
+            Text(updateController.alertMessage)
         }
     }
 
@@ -69,10 +66,10 @@ struct ContentView: View {
                 }
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                 Spacer()
-                Button(isCheckingUpdates ? "Checking…" : "Check for updates") {
-                    checkForUpdates()
+                Button(updateController.isChecking ? "Checking…" : "Check for updates") {
+                    updateController.checkForUpdates()
                 }
-                .disabled(isCheckingUpdates)
+                .disabled(updateController.isChecking)
                 .help("Check for updates")
                 Button(isInstalling ? "Installing…" : "Install") {
                     runInstall()
@@ -187,33 +184,4 @@ struct ContentView: View {
         }
     }
 
-    private func checkForUpdates() {
-        isCheckingUpdates = true
-        Task {
-            do {
-                let result = try await UpdateChecker.check()
-                await MainActor.run {
-                    if result.isUpdateAvailable {
-                        updateAlertTitle = "Update Available"
-                        updateAlertMessage = "You have \(result.currentVersion). The latest release is \(result.latestVersion)."
-                        updateReleaseURL = result.releaseURL
-                    } else {
-                        updateAlertTitle = "You're Up to Date"
-                        updateAlertMessage = "You have \(result.currentVersion), which matches the latest release."
-                        updateReleaseURL = nil
-                    }
-                    showingUpdateAlert = true
-                    isCheckingUpdates = false
-                }
-            } catch {
-                await MainActor.run {
-                    updateAlertTitle = "Couldn't Check for Updates"
-                    updateAlertMessage = error.localizedDescription
-                    updateReleaseURL = nil
-                    showingUpdateAlert = true
-                    isCheckingUpdates = false
-                }
-            }
-        }
-    }
 }

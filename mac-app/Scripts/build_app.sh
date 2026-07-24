@@ -19,6 +19,8 @@ mkdir -p "$APP_DIR/Contents/Resources"
 cp "$BUILD_DIR/$EXECUTABLE_NAME" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 cp "Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 cp "Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+cp "Resources/GitHub_Invertocat_Black.svg" "$APP_DIR/Contents/Resources/GitHub_Invertocat_Black.svg"
+cp "Resources/linkedin-svgrepo-com.svg" "$APP_DIR/Contents/Resources/linkedin-svgrepo-com.svg"
 
 echo "Signing $APP_DIR (ad-hoc)..."
 codesign --force --deep --sign - "$APP_DIR"
