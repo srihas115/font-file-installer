@@ -7,6 +7,8 @@ struct AboutView: View {
     private let sponsorURL = URL(string: "https://github.com/sponsors/srihas115")!
     private let coffeeURL = URL(string: "https://buymeacoffee.com/srihas")!
 
+    @State private var hoveredIcon: String?
+
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -17,7 +19,7 @@ struct AboutView: View {
         VStack(spacing: 12) {
             Image(nsImage: NSApplication.shared.applicationIconImage)
                 .resizable()
-                .frame(width: 64, height: 64)
+                .frame(width: 80, height: 80)
 
             VStack(spacing: 4) {
                 Text("Font Installer")
@@ -49,7 +51,9 @@ struct AboutView: View {
         imageName: String,
         url: URL,
     ) -> some View {
-        Button {
+        let isHovered = hoveredIcon == label
+
+        return Button {
             NSWorkspace.shared.open(url)
         } label: {
             if let image = socialImage(named: imageName) {
@@ -57,9 +61,22 @@ struct AboutView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 22, height: 22)
+                    .saturation(isHovered ? 1 : 0)
+                    .opacity(isHovered ? 1 : 0.55)
+                    .scaleEffect(isHovered ? 1.16 : 1)
+                    .animation(.easeOut(duration: 0.12), value: isHovered)
             }
         }
         .buttonStyle(.plain)
+        .frame(width: 28, height: 28)
+        .onHover { hovering in
+            hoveredIcon = hovering ? label : nil
+            if hovering {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
         .help(label)
         .accessibilityLabel(label)
     }
