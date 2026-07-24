@@ -124,6 +124,11 @@ struct ContentView: View {
             )
             .onHover { hovering in
                 isDropZoneHovered = hovering
+                if hovering {
+                    NSCursor.pointingHand.set()
+                } else {
+                    NSCursor.arrow.set()
+                }
             }
             .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
                 handleDrop(providers)
