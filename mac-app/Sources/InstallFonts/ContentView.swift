@@ -34,13 +34,16 @@ struct ContentView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            if mode == .google {
-                GoogleFontsView()
-            } else if mode == .fontsource {
-                FontsourceView()
-            } else {
-                folderInstallView
+            Group {
+                if mode == .google {
+                    GoogleFontsView()
+                } else if mode == .fontsource {
+                    FontsourceView()
+                } else {
+                    folderInstallView
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(20)
         .alert(updateController.alertTitle, isPresented: $updateController.isShowingAlert) {

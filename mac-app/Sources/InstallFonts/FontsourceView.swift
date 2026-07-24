@@ -75,7 +75,7 @@ struct FontsourceView: View {
                     }
                     .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
                 }
-                .frame(minHeight: 200, maxHeight: 260)
+                .frame(minHeight: 120, maxHeight: .infinity)
             }
 
             if let selectedFamily {
@@ -92,6 +92,7 @@ struct FontsourceView: View {
                 InstallResultsView(result: installResult)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             await loadCatalog()
         }
