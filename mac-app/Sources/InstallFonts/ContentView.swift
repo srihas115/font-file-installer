@@ -23,18 +23,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            HStack {
-                Spacer()
-                Text("Install Fonts")
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                Button(isCheckingUpdates ? "Checking…" : "Updates") {
-                    checkForUpdates()
-                }
-                .disabled(isCheckingUpdates)
-                .help("Check for updates")
-            }
+            Text("Install Fonts")
+                .font(.title2)
+                .bold()
 
             Picker("", selection: $mode) {
                 ForEach(InstallMode.allCases, id: \.self) { option in
@@ -75,6 +66,11 @@ struct ContentView: View {
                 }
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                 Spacer()
+                Button(isCheckingUpdates ? "Checking…" : "Check for updates") {
+                    checkForUpdates()
+                }
+                .disabled(isCheckingUpdates)
+                .help("Check for updates")
                 Button(isInstalling ? "Installing…" : "Install") {
                     runInstall()
                 }
