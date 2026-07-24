@@ -159,7 +159,7 @@ struct ContentView: View {
     }
 
     private func adjustWindowHeight(for mode: InstallMode) {
-        let compactHeight: CGFloat = 280
+        let compactHeight: CGFloat = 310
         let catalogHeight: CGFloat = 430
 
         DispatchQueue.main.async {
@@ -181,7 +181,7 @@ struct ContentView: View {
     }
 
     private func resetInitialFolderWindowHeight() {
-        let compactHeight: CGFloat = 280
+        let compactHeight: CGFloat = 310
 
         DispatchQueue.main.async {
             guard !didSetInitialWindowHeight, mode == .folder, let window = NSApp.keyWindow else { return }
