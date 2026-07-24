@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 enum InstallMode: String, CaseIterable {
     case folder = "From Folder/Zip"
     case google = "Google Fonts"
+    case fontsource = "Fontsource"
 }
 
 struct ContentView: View {
@@ -37,6 +38,8 @@ struct ContentView: View {
 
             if mode == .google {
                 GoogleFontsView()
+            } else if mode == .fontsource {
+                FontsourceView()
             } else {
                 folderInstallView
             }

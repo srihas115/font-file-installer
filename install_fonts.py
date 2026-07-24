@@ -32,6 +32,7 @@ CATALOG_CACHE_TTL_SECONDS = 7 * 24 * 3600
 APP_VERSION = "1.1.0"
 GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/srihas115/font-file-installer/releases/latest"
 GITHUB_RELEASES_URL = "https://github.com/srihas115/font-file-installer/releases/latest"
+FONTSOURCE_API_URL = "https://api.fontsource.org/v1/fonts"
 
 
 def get_fonts_dir() -> Path:
@@ -277,6 +278,137 @@ def print_update_status(current_version: str = APP_VERSION, fetch_url=_fetch_url
     return 0
 
 
+def fontsource_slug(value: str) -> str:
+    slug = value.strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    return slug.strip("-")
+
+
+def fetch_fontsource_catalog(fetch_url=_fetch_url) -> list:
+    raw = fetch_url(FONTSOURCE_API_URL, timeout=20, retries=1).decode("utf-8")
+    catalog = json.loads(raw)
+    if not isinstance(catalog, list):
+        raise RuntimeError("Fontsource returned an unexpected catalog response.")
+    return catalog
+
+
+def fetch_fontsource_font(font_id: str, fetch_url=_fetch_url) -> dict:
+    url = f"{FONTSOURCE_API_URL}/{urllib.parse.quote(font_id)}"
+    raw = fetch_url(url, timeout=20, retries=1).decode("utf-8")
+    font = json.loads(raw)
+    if not isinstance(font, dict) or "variants" not in font:
+        raise RuntimeError(f"Fontsource returned an unexpected response for {font_id}.")
+    return font
+
+
+def resolve_fontsource_family(spec: str, catalog: list):
+    family_input, weights = parse_google_spec(spec)
+    desired_slug = fontsource_slug(family_input)
+
+    by_id = {
+        entry.get("id", "").lower(): entry
+        for entry in catalog
+        if isinstance(entry, dict) and entry.get("id")
+    }
+    by_family = {
+        entry.get("family", "").lower(): entry
+        for entry in catalog
+        if isinstance(entry, dict) and entry.get("family")
+    }
+
+    match = by_id.get(desired_slug) or by_family.get(family_input.lower())
+    if match:
+        return match, weights
+
+    family_names = [
+        entry.get("family", "")
+        for entry in catalog
+        if isinstance(entry, dict) and entry.get("family")
+    ]
+    suggestions = difflib.get_close_matches(family_input, family_names, n=3)
+    raise ValueError(
+        f"'{family_input}' was not found in Fontsource."
+        + (f" Did you mean: {', '.join(suggestions)}?" if suggestions else "")
+    )
+
+
+def fontsource_variant_urls(font: dict, weights):
+    variants = font.get("variants", {})
+    subset = font.get("defSubset")
+    entries = []
+
+    for weight, italic in weights:
+        weight_key = str(weight)
+        style_key = "italic" if italic else "normal"
+        style_variants = variants.get(weight_key, {}).get(style_key, {})
+        if not style_variants:
+            continue
+
+        subset_key = subset if subset in style_variants else next(iter(style_variants), None)
+        if not subset_key:
+            continue
+
+        urls = style_variants.get(subset_key, {}).get("url", {})
+        file_url = urls.get("ttf") or urls.get("woff2") or urls.get("woff")
+        if file_url:
+            entries.append((weight, italic, subset_key, file_url))
+
+    return entries
+
+
+def download_fontsource_fonts(family: str, entries, dest_dir: Path, fetch_url=_fetch_url):
+    downloaded = []
+    safe_family = re.sub(r"[^A-Za-z0-9]+", "", family) or "Font"
+
+    for weight, italic, subset, url in entries:
+        suffix = Path(urllib.parse.urlparse(url).path).suffix or ".ttf"
+        filename = f"{safe_family}-{subset}-{weight}{'Italic' if italic else ''}{suffix}"
+        dest = dest_dir / filename
+        try:
+            dest.write_bytes(fetch_url(url, timeout=30, retries=1))
+            downloaded.append(dest)
+        except (urllib.error.URLError, OSError) as e:
+            print(f"Warning: failed to download {filename}: {e}")
+
+    return downloaded
+
+
+def prepare_fontsource_folder(specs) -> Path:
+    try:
+        catalog = fetch_fontsource_catalog()
+    except (RuntimeError, json.JSONDecodeError, UnicodeDecodeError, urllib.error.URLError, OSError) as e:
+        print(f"Error: could not reach Fontsource: {e}")
+        sys.exit(1)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="install_fonts_fontsource_"))
+    any_downloaded = False
+
+    for spec in specs:
+        try:
+            catalog_entry, weights = resolve_fontsource_family(spec, catalog)
+            font = fetch_fontsource_font(catalog_entry["id"])
+            entries = fontsource_variant_urls(font, weights)
+        except (KeyError, ValueError, RuntimeError, json.JSONDecodeError, UnicodeDecodeError, urllib.error.URLError, OSError) as e:
+            print(f"Error: {e}")
+            continue
+
+        if not entries:
+            print(f"Warning: no Fontsource files found for '{catalog_entry['family']}' with the requested weights.")
+            continue
+
+        downloaded = download_fontsource_fonts(catalog_entry["family"], entries, temp_dir)
+        if downloaded:
+            any_downloaded = True
+            print(f"Downloaded {len(downloaded)} file(s) for {catalog_entry['family']} from Fontsource.")
+
+    if not any_downloaded:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        print("No fonts were downloaded from Fontsource.")
+        sys.exit(1)
+
+    return temp_dir
+
+
 def fetch_google_catalog(force_refresh: bool = False) -> dict:
     """Fetch (and cache) the Google Fonts family catalog.
 
@@ -484,6 +616,15 @@ def main():
         ),
     )
     parser.add_argument(
+        "--fontsource",
+        nargs="+",
+        metavar="FAMILY[:WEIGHTS]",
+        help=(
+            'Install one or more Fontsource fonts by family name or id, e.g. '
+            '--fontsource Roboto "Open Sans:400,400i,700". Weights default to 400,700.'
+        ),
+    )
+    parser.add_argument(
         "--refresh-catalog",
         action="store_true",
         help="Force re-downloading the cached Google Fonts catalog before resolving --google families.",
@@ -499,10 +640,14 @@ def main():
         sys.exit(print_update_status())
 
     google_temp_folder = None
+    fontsource_temp_folder = None
     zip_temp_folder = None
     if args.google:
         google_temp_folder = prepare_google_fonts_folder(args.google, force_refresh=args.refresh_catalog)
         folder = google_temp_folder
+    elif args.fontsource:
+        fontsource_temp_folder = prepare_fontsource_folder(args.fontsource)
+        folder = fontsource_temp_folder
     elif args.folder_path:
         folder = Path(args.folder_path).expanduser().resolve()
     else:
@@ -610,6 +755,8 @@ def main():
     finally:
         if google_temp_folder:
             shutil.rmtree(google_temp_folder, ignore_errors=True)
+        if fontsource_temp_folder:
+            shutil.rmtree(fontsource_temp_folder, ignore_errors=True)
         if zip_temp_folder:
             shutil.rmtree(zip_temp_folder, ignore_errors=True)
 

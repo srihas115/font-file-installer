@@ -76,6 +76,7 @@ Implementation split:
 python3 install_fonts.py [folder_path]
 python3 install_fonts.py [font_zip_path]
 python3 install_fonts.py --google Roboto "Open Sans:700,400i"
+python3 install_fonts.py --fontsource Roboto "Open Sans:400,400i,700"
 python3 install_fonts.py --check-updates
 python3 -m unittest discover -s tests
 
@@ -93,6 +94,11 @@ Update checks use GitHub's latest Release endpoint:
 `https://api.github.com/repos/srihas115/font-file-installer/releases/latest`. Keep this
 dependency-free in both Python and Swift; the feature should report and link to a newer
 release, not auto-download or replace the running app.
+
+Fontsource support uses the documented API at `https://api.fontsource.org/v1/fonts`.
+The list endpoint returns searchable family metadata; the font-id endpoint returns
+variant file URLs (`ttf`, `woff2`, `woff`). Prefer `ttf` when available, then feed
+downloaded files into the existing install flow.
 
 ## Conventions
 

@@ -41,6 +41,7 @@ Requires only Python 3 (standard library — no installs needed).
 ```bash
 python3 install_fonts.py [folder_or_zip_path]
 python3 install_fonts.py --check-updates
+python3 install_fonts.py --fontsource Roboto
 ```
 
 - Omit `folder_or_zip_path` to get a native folder picker dialog (macOS uses AppleScript; Windows/Linux use Tk).
@@ -52,6 +53,16 @@ python3 install_fonts.py --check-updates
 - Skips files that already exist there (use `--force` to overwrite).
 - Checks GitHub Releases for a newer version with `--check-updates`.
 - Prints a summary of found/installed/skipped/failed fonts.
+
+### Installing straight from Fontsource
+
+```bash
+python3 install_fonts.py --fontsource Roboto "Open Sans:400,400i,700"
+```
+
+- Pass one or more Fontsource family names or ids instead of a folder.
+- Add `:WEIGHTS` after a family to pick specific weights (default is `400,700`); append `i` to a weight for the italic cut.
+- This uses Fontsource's documented API at `https://api.fontsource.org/v1/fonts`.
 
 ### Installing straight from Google Fonts
 
@@ -74,7 +85,7 @@ cd mac-app
 open "Install Fonts.app"
 ```
 
-Use the **Updates** button in the app to check GitHub Releases for a newer download.
+Use the **Check for updates** button in the app to check GitHub Releases for a newer download. Use the **Fontsource** tab to search and install fonts from Fontsource.
 
 This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds it (plus the Windows `.exe` and Linux binary via PyInstaller) automatically whenever a `v*` tag is pushed.
 

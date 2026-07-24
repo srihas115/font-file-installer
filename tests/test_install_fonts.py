@@ -167,5 +167,71 @@ class UpdateCheckTests(unittest.TestCase):
         self.assertIn("Update available: https://example.test/release", output.getvalue())
 
 
+class FontsourceTests(unittest.TestCase):
+    def test_fontsource_slug_normalizes_family_names(self):
+        self.assertEqual(install_fonts.fontsource_slug("Open Sans"), "open-sans")
+        self.assertEqual(install_fonts.fontsource_slug("  Source Code Pro  "), "source-code-pro")
+
+    def test_resolve_fontsource_family_matches_id_or_family(self):
+        catalog = [
+            {"id": "open-sans", "family": "Open Sans"},
+            {"id": "roboto", "family": "Roboto"},
+        ]
+
+        match, weights = install_fonts.resolve_fontsource_family("Open Sans:400,700i", catalog)
+
+        self.assertEqual(match["id"], "open-sans")
+        self.assertEqual(weights, [(400, False), (700, True)])
+
+    def test_fontsource_variant_urls_prefers_default_subset_and_ttf(self):
+        font = {
+            "defSubset": "latin",
+            "variants": {
+                "400": {
+                    "normal": {
+                        "latin": {
+                            "url": {
+                                "woff2": "https://example.test/open-sans.woff2",
+                                "ttf": "https://example.test/open-sans.ttf",
+                            }
+                        }
+                    }
+                },
+                "700": {
+                    "italic": {
+                        "latin-ext": {
+                            "url": {
+                                "woff": "https://example.test/open-sans-700i.woff",
+                            }
+                        }
+                    }
+                },
+            },
+        }
+
+        self.assertEqual(
+            install_fonts.fontsource_variant_urls(font, [(400, False), (700, True)]),
+            [
+                (400, False, "latin", "https://example.test/open-sans.ttf"),
+                (700, True, "latin-ext", "https://example.test/open-sans-700i.woff"),
+            ],
+        )
+
+    def test_download_fontsource_fonts_writes_files(self):
+        def fake_fetch(url, timeout=15, retries=1, backoff=1.0):
+            return b"font"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            downloaded = install_fonts.download_fontsource_fonts(
+                "Open Sans",
+                [(400, False, "latin", "https://example.test/open-sans.ttf")],
+                Path(tmp),
+                fetch_url=fake_fetch,
+            )
+
+            self.assertEqual([path.name for path in downloaded], ["OpenSans-latin-400.ttf"])
+            self.assertEqual(downloaded[0].read_bytes(), b"font")
+
+
 if __name__ == "__main__":
     unittest.main()
