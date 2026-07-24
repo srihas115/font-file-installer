@@ -1,8 +1,8 @@
 import SwiftUI
 
 enum FontSortOrder: String, CaseIterable {
-    case alphabetical = "Alphabetical"
     case popular = "Most Popular"
+    case alphabetical = "Alphabetical"
 }
 
 struct GoogleFontsView: View {
@@ -21,7 +21,6 @@ struct GoogleFontsView: View {
     @State private var forceOverwrite = false
 
     @State private var isInstalling = false
-    @State private var installResult: InstallResult?
     @State private var installError: String?
 
     private let popularFamilies = [
@@ -74,9 +73,9 @@ struct GoogleFontsView: View {
                         Text(option.rawValue).tag(option)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
-                .frame(width: 210)
+                .frame(width: 130)
             }
 
             if isLoadingCatalog {
@@ -140,10 +139,6 @@ struct GoogleFontsView: View {
                     .foregroundStyle(.red)
                     .font(.callout)
             }
-
-            if let installResult {
-                InstallResultsView(result: installResult)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
@@ -161,6 +156,8 @@ struct GoogleFontsView: View {
             let hasItalic = family.variants.contains { $0.contains("italic") }
 
             HStack {
+                Toggle("All", isOn: allWeightsBinding(availableWeights))
+                    .toggleStyle(.button)
                 ForEach(availableWeights, id: \.self) { weight in
                     Toggle("\(weight)", isOn: weightBinding(weight))
                         .toggleStyle(.button)
@@ -205,13 +202,11 @@ struct GoogleFontsView: View {
             selectedFamilyIDs.insert(family.id)
             focusFamily(family)
         }
-        installResult = nil
         installError = nil
     }
 
     private func focusFamily(_ family: FontFamily) {
         selectedFamily = family
-        installResult = nil
         installError = nil
         setDefaultWeights(for: family)
         includeItalic = false
@@ -249,6 +244,19 @@ struct GoogleFontsView: View {
         )
     }
 
+    private func allWeightsBinding(_ weights: [Int]) -> Binding<Bool> {
+        Binding(
+            get: { Set(weights).isSubset(of: selectedWeights) },
+            set: { isOn in
+                if isOn {
+                    selectedWeights.formUnion(weights)
+                } else {
+                    selectedWeights.removeAll()
+                }
+            }
+        )
+    }
+
     private func loadCatalog(forceRefresh: Bool) async {
         isLoadingCatalog = true
         loadError = nil
@@ -266,7 +274,6 @@ struct GoogleFontsView: View {
 
         isInstalling = true
         installError = nil
-        installResult = nil
 
         let force = forceOverwrite
         let requestedWeights = selectedWeights
@@ -296,8 +303,8 @@ struct GoogleFontsView: View {
 
                 let finalResult = combinedResult
                 await MainActor.run {
-                    installResult = finalResult
                     isInstalling = false
+                    InstallNotifier.notify(result: finalResult)
                 }
             } catch {
                 await MainActor.run {

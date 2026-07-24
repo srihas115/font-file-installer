@@ -16,7 +16,6 @@ struct FontsourceView: View {
     @State private var forceOverwrite = false
 
     @State private var isInstalling = false
-    @State private var installResult: InstallResult?
     @State private var installError: String?
 
     private let popularFamilyIDs = [
@@ -72,9 +71,9 @@ struct FontsourceView: View {
                         Text(option.rawValue).tag(option)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
-                .frame(width: 210)
+                .frame(width: 130)
             }
 
             if isLoadingCatalog {
@@ -138,10 +137,6 @@ struct FontsourceView: View {
                     .foregroundStyle(.red)
                     .font(.callout)
             }
-
-            if let installResult {
-                InstallResultsView(result: installResult)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
@@ -156,7 +151,10 @@ struct FontsourceView: View {
                 .font(.headline)
 
             HStack {
-                ForEach(family.weights.sorted(), id: \.self) { weight in
+                let availableWeights = family.weights.sorted()
+                Toggle("All", isOn: allWeightsBinding(availableWeights))
+                    .toggleStyle(.button)
+                ForEach(availableWeights, id: \.self) { weight in
                     Toggle("\(weight)", isOn: weightBinding(weight))
                         .toggleStyle(.button)
                 }
@@ -200,13 +198,11 @@ struct FontsourceView: View {
             selectedFamilyIDs.insert(family.id)
             focusFamily(family)
         }
-        installResult = nil
         installError = nil
     }
 
     private func focusFamily(_ family: FontsourceFamily) {
         selectedFamily = family
-        installResult = nil
         installError = nil
         setDefaultWeights(for: family)
         includeItalic = false
@@ -232,6 +228,19 @@ struct FontsourceView: View {
         )
     }
 
+    private func allWeightsBinding(_ weights: [Int]) -> Binding<Bool> {
+        Binding(
+            get: { Set(weights).isSubset(of: selectedWeights) },
+            set: { isOn in
+                if isOn {
+                    selectedWeights.formUnion(weights)
+                } else {
+                    selectedWeights.removeAll()
+                }
+            }
+        )
+    }
+
     private func loadCatalog() async {
         isLoadingCatalog = true
         loadError = nil
@@ -249,7 +258,6 @@ struct FontsourceView: View {
 
         isInstalling = true
         installError = nil
-        installResult = nil
 
         let force = forceOverwrite
         let requestedWeights = selectedWeights
@@ -272,8 +280,8 @@ struct FontsourceView: View {
                 }
                 let finalResult = combinedResult
                 await MainActor.run {
-                    installResult = finalResult
                     isInstalling = false
+                    InstallNotifier.notify(result: finalResult)
                 }
             } catch {
                 await MainActor.run {

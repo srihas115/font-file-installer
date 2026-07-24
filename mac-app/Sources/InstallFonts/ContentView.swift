@@ -17,7 +17,6 @@ struct ContentView: View {
     @State private var isDropZoneHovered = false
     @State private var forceOverwrite = false
     @State private var isInstalling = false
-    @State private var result: InstallResult?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -64,9 +63,6 @@ struct ContentView: View {
 
             VStack(spacing: 16) {
                 HStack {
-                    Button("Choose Folder or Zip…") {
-                        chooseFolder()
-                    }
                     Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                     Spacer()
                     Button(updateController.isChecking ? "Checking…" : "Check for updates") {
@@ -86,10 +82,6 @@ struct ContentView: View {
                         .foregroundStyle(.red)
                         .font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if let result {
-                    InstallResultsView(result: result)
                 }
             }
         }
@@ -171,7 +163,6 @@ struct ContentView: View {
                 if exists && (isDirectory.boolValue || isZip) {
                     self.selectedFolder = url
                     self.errorMessage = nil
-                    self.result = nil
                 } else {
                     self.errorMessage = "Please drop a folder or a .zip file."
                 }
@@ -192,7 +183,6 @@ struct ContentView: View {
         if panel.runModal() == .OK, let url = panel.url {
             selectedFolder = url
             errorMessage = nil
-            result = nil
         }
     }
 
@@ -205,10 +195,11 @@ struct ContentView: View {
         DispatchQueue.global(qos: .userInitiated).async {
             let outcome = FontInstaller.install(from: selectedFolder, force: force)
             DispatchQueue.main.async {
-                self.result = outcome
                 self.isInstalling = false
                 if outcome.found.isEmpty {
                     self.errorMessage = "No font files (.otf, .ttf, .woff, .woff2) found in that folder."
+                } else {
+                    InstallNotifier.notify(result: outcome)
                 }
             }
         }
