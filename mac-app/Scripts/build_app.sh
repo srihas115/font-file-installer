@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP_NAME="Install Fonts"
+APP_NAME="Font Installer"
 EXECUTABLE_NAME="InstallFonts"
 BUILD_DIR=".build/release"
 APP_DIR="$APP_NAME.app"

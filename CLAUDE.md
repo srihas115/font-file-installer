@@ -83,7 +83,7 @@ python3 -m unittest discover -s tests
 # macOS app
 cd mac-app
 ./Scripts/build_app.sh
-open "Install Fonts.app"
+open "Font Installer.app"
 ```
 
 The Python test suite covers pure logic and safe source resolution. For changes that

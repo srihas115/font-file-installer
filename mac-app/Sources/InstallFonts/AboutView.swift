@@ -20,7 +20,7 @@ struct AboutView: View {
                 .frame(width: 64, height: 64)
 
             VStack(spacing: 4) {
-                Text("Install Fonts")
+                Text("Font Installer")
                     .font(.headline)
                     .bold()
                 Text(appVersion)

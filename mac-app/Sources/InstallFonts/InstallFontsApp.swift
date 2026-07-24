@@ -15,7 +15,7 @@ struct InstallFontsApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About Install Fonts") {
+                Button("About Font Installer") {
                     openWindow(id: "about")
                 }
             }
@@ -27,7 +27,7 @@ struct InstallFontsApp: App {
             }
         }
 
-        Window("About Install Fonts", id: "about") {
+        Window("About Font Installer", id: "about") {
             AboutView()
         }
         .defaultSize(width: 300, height: 230)

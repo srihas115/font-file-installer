@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.srihasgupta.install-fonts</string>
     <key>CFBundleName</key>
-    <string>Install Fonts</string>
+    <string>Font Installer</string>
     <key>CFBundleDisplayName</key>
-    <string>Install Fonts</string>
+    <string>Font Installer</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

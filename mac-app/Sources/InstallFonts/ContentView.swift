@@ -22,7 +22,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("Install Fonts")
+            Text("Font Installer")
                 .font(.title2)
                 .bold()
 
