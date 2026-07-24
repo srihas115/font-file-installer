@@ -21,6 +21,8 @@ cp "Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 cp "Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "Resources/GitHub_Invertocat_Black.svg" "$APP_DIR/Contents/Resources/GitHub_Invertocat_Black.svg"
 cp "Resources/linkedin-svgrepo-com.svg" "$APP_DIR/Contents/Resources/linkedin-svgrepo-com.svg"
+cp "Resources/donate-heart-svgrepo-com.svg" "$APP_DIR/Contents/Resources/donate-heart-svgrepo-com.svg"
+cp "Resources/bmc-logo.svg" "$APP_DIR/Contents/Resources/bmc-logo.svg"
 
 echo "Signing $APP_DIR (ad-hoc)..."
 codesign --force --deep --sign - "$APP_DIR"

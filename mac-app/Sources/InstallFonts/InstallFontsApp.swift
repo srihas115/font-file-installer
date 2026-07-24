@@ -30,7 +30,7 @@ struct InstallFontsApp: App {
         Window("About Install Fonts", id: "about") {
             AboutView()
         }
-        .defaultSize(width: 284, height: 210)
+        .defaultSize(width: 300, height: 230)
         .windowResizability(.contentSize)
     }
 }
