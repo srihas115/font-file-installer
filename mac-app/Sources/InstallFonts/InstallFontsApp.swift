@@ -33,5 +33,9 @@ struct InstallFontsApp: App {
         }
         .defaultSize(width: 300, height: 230)
         .windowResizability(.contentSize)
+
+        Settings {
+            SettingsView()
+        }
     }
 }

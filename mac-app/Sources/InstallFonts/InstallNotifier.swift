@@ -3,6 +3,8 @@ import UserNotifications
 
 enum InstallNotifier {
     static func notify(result: InstallResult) {
+        guard AppSettings.notificationsEnabled else { return }
+
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {

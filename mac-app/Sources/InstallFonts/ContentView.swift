@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 
 enum InstallMode: String, CaseIterable {
     case folder = "From Folder/Zip"
@@ -10,6 +11,8 @@ enum InstallMode: String, CaseIterable {
 
 struct ContentView: View {
     @EnvironmentObject private var updateController: UpdateCheckController
+    @AppStorage(AppSettings.hasAskedNotificationPermissionKey) private var hasAskedNotificationPermission = false
+    @AppStorage(AppSettings.notificationsEnabledKey) private var notificationsEnabled = false
 
     @State private var mode: InstallMode = .folder
     @State private var selectedFolder: URL?
@@ -18,6 +21,7 @@ struct ContentView: View {
     @State private var forceOverwrite = false
     @State private var isInstalling = false
     @State private var errorMessage: String?
+    @State private var isShowingNotificationPrompt = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -54,6 +58,22 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(updateController.alertMessage)
+        }
+        .alert("Turn On Install Notifications?", isPresented: $isShowingNotificationPrompt) {
+            Button("Turn On") {
+                enableInstallNotifications()
+            }
+            Button("Not Now", role: .cancel) {
+                hasAskedNotificationPermission = true
+                notificationsEnabled = false
+            }
+        } message: {
+            Text("Font Installer can send a notification after each install so you know how many fonts were installed, skipped, or failed.")
+        }
+        .onAppear {
+            if !hasAskedNotificationPermission {
+                isShowingNotificationPrompt = true
+            }
         }
     }
 
@@ -140,6 +160,15 @@ struct ContentView: View {
             return Color.secondary.opacity(0.12)
         }
         return Color.clear
+    }
+
+    private func enableInstallNotifications() {
+        hasAskedNotificationPermission = true
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            DispatchQueue.main.async {
+                notificationsEnabled = granted
+            }
+        }
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

@@ -9,7 +9,7 @@ struct GoogleFontsView: View {
     @StateObject private var previewStore = FontPreviewStore()
 
     @State private var searchText = ""
-    @State private var sortOrder: FontSortOrder = .popular
+    @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
     @State private var families: [FontFamily] = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
@@ -51,7 +51,7 @@ struct GoogleFontsView: View {
     }
 
     private func sorted(_ families: [FontFamily]) -> [FontFamily] {
-        switch sortOrder {
+        switch FontSortOrder(rawValue: sortOrder) ?? .popular {
         case .alphabetical:
             return families.sorted { $0.family < $1.family }
         case .popular:
@@ -70,7 +70,7 @@ struct GoogleFontsView: View {
 
                 Picker("", selection: $sortOrder) {
                     ForEach(FontSortOrder.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.rawValue).tag(option.rawValue)
                     }
                 }
                 .pickerStyle(.menu)
