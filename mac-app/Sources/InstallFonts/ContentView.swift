@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var mode: InstallMode = .folder
     @State private var selectedFolder: URL?
     @State private var isTargeted = false
+    @State private var isDropZoneHovered = false
     @State private var forceOverwrite = false
     @State private var isInstalling = false
     @State private var result: InstallResult?
@@ -96,9 +97,9 @@ struct ContentView: View {
             .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary.opacity(0.5))
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
+                    .fill(dropZoneFillColor)
             )
-            .frame(height: 140)
+            .frame(height: 250)
             .overlay(
                 VStack(spacing: 6) {
                     Image(systemName: "arrow.down.doc")
@@ -110,15 +111,33 @@ struct ContentView: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                     } else {
-                        Text("Drag a folder or .zip file here")
+                        Text("Click to choose, or drag a folder or .zip file here")
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padding()
             )
+            .onHover { hovering in
+                isDropZoneHovered = hovering
+            }
             .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
                 handleDrop(providers)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                chooseFolder()
+            }
+            .help("Choose a folder or .zip file")
+    }
+
+    private var dropZoneFillColor: Color {
+        if isTargeted {
+            return Color.accentColor.opacity(0.08)
+        }
+        if isDropZoneHovered {
+            return Color.secondary.opacity(0.12)
+        }
+        return Color.clear
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -158,6 +177,7 @@ struct ContentView: View {
         panel.allowedContentTypes = [.zip]
         panel.allowsMultipleSelection = false
         panel.prompt = "Select"
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
 
         if panel.runModal() == .OK, let url = panel.url {
             selectedFolder = url
