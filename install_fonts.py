@@ -5,15 +5,28 @@ Works on macOS, Windows, and Linux using only the Python standard library.
 """
 
 import argparse
+import difflib
+import json
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 FONT_EXTENSIONS = {".otf", ".ttf", ".woff", ".woff2"}
 
 PLATFORM = sys.platform  # "darwin", "win32", "linux", ...
+
+USER_AGENT = "font-file-installer/1.0"
+GOOGLE_METADATA_URL = "https://fonts.google.com/metadata/fonts"
+GOOGLE_CSS_URL = "https://fonts.googleapis.com/css2"
+CATALOG_CACHE_TTL_SECONDS = 7 * 24 * 3600
 
 
 def get_fonts_dir() -> Path:
@@ -31,6 +44,18 @@ def get_fonts_dir() -> Path:
 
 
 FONTS_DIR = get_fonts_dir()
+
+
+def get_cache_dir() -> Path:
+    import os
+
+    if PLATFORM == "darwin":
+        base = Path.home() / "Library" / "Caches"
+    elif PLATFORM == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+    else:
+        base = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    return base / "font-file-installer"
 
 
 def pick_folder_with_dialog() -> Path:
@@ -140,6 +165,202 @@ def refresh_font_cache_linux() -> Optional[str]:
         return f"fc-cache reported an error: {e.stderr.strip() or e}"
 
 
+def _fetch_url(url: str, timeout: float = 15, retries: int = 1, backoff: float = 1.0) -> bytes:
+    """GET a URL with a small retry/backoff, identifying ourselves with a real User-Agent."""
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    last_error: Optional[Exception] = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except (urllib.error.URLError, OSError) as e:
+            last_error = e
+            if attempt < retries:
+                time.sleep(backoff)
+    assert last_error is not None
+    raise last_error
+
+
+def fetch_google_catalog(force_refresh: bool = False) -> dict:
+    """Fetch (and cache) the Google Fonts family catalog.
+
+    Uses the public JSON endpoint fonts.google.com itself relies on (no API key
+    required); this is an unofficial endpoint, so failures fall back to a stale
+    cache when one exists rather than breaking the whole tool.
+    """
+    cache_path = get_cache_dir() / "google-fonts-metadata.json"
+
+    if not force_refresh and cache_path.exists():
+        age = time.time() - cache_path.stat().st_mtime
+        if age < CATALOG_CACHE_TTL_SECONDS:
+            try:
+                return json.loads(cache_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                pass
+
+    try:
+        raw = _fetch_url(GOOGLE_METADATA_URL).decode("utf-8")
+    except (urllib.error.URLError, OSError) as e:
+        if cache_path.exists():
+            try:
+                return json.loads(cache_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                pass
+        raise RuntimeError(f"could not reach the Google Fonts catalog: {e}") from e
+
+    # The response is prefixed with a `)]}'` XSSI-protection line; strip it before parsing.
+    if raw.startswith(")]}'"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else "{}"
+
+    catalog = json.loads(raw)
+
+    try:
+        cache_dir = get_cache_dir()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(catalog), encoding="utf-8")
+    except OSError:
+        pass  # Caching is a nice-to-have; a failure here shouldn't break the fetch.
+
+    return catalog
+
+
+def parse_google_spec(spec: str):
+    """Parse a `--google` argument like "Roboto" or "Open Sans:700,400i" into
+    (family_name, [(weight, italic), ...]). Weights default to 400/700 non-italic."""
+    if ":" in spec:
+        family, weights_part = spec.split(":", 1)
+    else:
+        family, weights_part = spec, ""
+    family = family.strip()
+
+    weights = []
+    for token in weights_part.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        italic = token.lower().endswith("i")
+        if italic:
+            token = token[:-1]
+        try:
+            weights.append((int(token), italic))
+        except ValueError:
+            print(f"Warning: ignoring invalid weight '{token}' for '{family}'.")
+
+    if not weights:
+        weights = [(400, False), (700, False)]
+
+    return family, weights
+
+
+def build_css2_url(family: str, weights) -> str:
+    # Percent-encode the family name only (keeping a literal "+" for spaces), then build
+    # the query string by hand: urlencode() would re-escape the ":;,@" characters that
+    # the css2 API expects to see literally.
+    family_param = urllib.parse.quote(family.replace(" ", "+"), safe="+")
+    has_italic = any(italic for _, italic in weights)
+
+    if has_italic:
+        pairs = sorted(set(weights), key=lambda w: (w[1], w[0]))
+        axis = ";".join(f"{1 if italic else 0},{weight}" for weight, italic in pairs)
+        family_axis = f"{family_param}:ital,wght@{axis}"
+    else:
+        distinct_weights = sorted({weight for weight, _ in weights})
+        family_axis = f"{family_param}:wght@{';'.join(str(w) for w in distinct_weights)}"
+
+    return f"{GOOGLE_CSS_URL}?family={family_axis}&display=swap"
+
+
+FONT_FACE_RE = re.compile(r"@font-face\s*\{([^}]*)\}", re.DOTALL)
+
+
+def parse_css2(css_text: str):
+    """Parse css2 API output into a list of (weight, italic, file_url) tuples."""
+    entries = []
+    for block in FONT_FACE_RE.findall(css_text):
+        weight_match = re.search(r"font-weight:\s*(\d+)", block)
+        style_match = re.search(r"font-style:\s*(\w+)", block)
+        url_match = re.search(r"url\((https://fonts\.gstatic\.com/[^)]+)\)", block)
+        if not (weight_match and url_match):
+            continue
+        weight = int(weight_match.group(1))
+        italic = bool(style_match and style_match.group(1) == "italic")
+        entries.append((weight, italic, url_match.group(1)))
+    return entries
+
+
+def resolve_google_font_files(family: str, weights):
+    """Fetch the css2 stylesheet for `family`/`weights` and return the font files it references."""
+    css_text = _fetch_url(build_css2_url(family, weights)).decode("utf-8")
+    return parse_css2(css_text)
+
+
+def download_google_fonts(family: str, entries, dest_dir: Path):
+    """Download resolved (weight, italic, url) entries into dest_dir. Returns the files written."""
+    downloaded = []
+    safe_family = re.sub(r"[^A-Za-z0-9]+", "", family) or "Font"
+    for weight, italic, url in entries:
+        suffix = Path(urllib.parse.urlparse(url).path).suffix or ".ttf"
+        filename = f"{safe_family}-{weight}{'Italic' if italic else ''}{suffix}"
+        dest = dest_dir / filename
+        try:
+            dest.write_bytes(_fetch_url(url, timeout=30))
+            downloaded.append(dest)
+        except (urllib.error.URLError, OSError) as e:
+            print(f"Warning: failed to download {filename}: {e}")
+    return downloaded
+
+
+def prepare_google_fonts_folder(specs, force_refresh: bool = False) -> Path:
+    """Resolve one or more --google family specs into a temp folder of downloaded font files."""
+    try:
+        catalog = fetch_google_catalog(force_refresh=force_refresh)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    known_families = {
+        entry["family"].lower(): entry["family"]
+        for entry in catalog.get("familyMetadataList", [])
+        if "family" in entry
+    }
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="install_fonts_google_"))
+    any_downloaded = False
+
+    for spec in specs:
+        family_input, weights = parse_google_spec(spec)
+        matched_family = known_families.get(family_input.lower())
+
+        if not matched_family:
+            print(f"Error: '{family_input}' was not found in the Google Fonts catalog.")
+            suggestions = difflib.get_close_matches(family_input, known_families.values(), n=3)
+            if suggestions:
+                print(f"  Did you mean: {', '.join(suggestions)}?")
+            continue
+
+        try:
+            entries = resolve_google_font_files(matched_family, weights)
+        except (urllib.error.URLError, OSError) as e:
+            print(f"Error: could not fetch '{matched_family}' from Google Fonts: {e}")
+            continue
+
+        if not entries:
+            print(f"Warning: no font files found for '{matched_family}' with the requested weights.")
+            continue
+
+        downloaded = download_google_fonts(matched_family, entries, temp_dir)
+        if downloaded:
+            any_downloaded = True
+            print(f"Downloaded {len(downloaded)} file(s) for {matched_family}.")
+
+    if not any_downloaded:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        print("No fonts were downloaded from Google Fonts.")
+        sys.exit(1)
+
+    return temp_dir
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Install a folder of fonts into your user fonts directory."
@@ -155,99 +376,122 @@ def main():
         action="store_true",
         help="Overwrite fonts that already exist in the fonts directory.",
     )
+    parser.add_argument(
+        "--google",
+        nargs="+",
+        metavar="FAMILY[:WEIGHTS]",
+        help=(
+            'Install one or more Google Fonts by family name instead of a local folder, e.g. '
+            '--google Roboto "Open Sans:700,400i". Weights default to 400,700 '
+            '(comma-separated, append "i" for italic).'
+        ),
+    )
+    parser.add_argument(
+        "--refresh-catalog",
+        action="store_true",
+        help="Force re-downloading the cached Google Fonts catalog before resolving --google families.",
+    )
     args = parser.parse_args()
 
-    if args.folder_path:
+    google_temp_folder = None
+    if args.google:
+        google_temp_folder = prepare_google_fonts_folder(args.google, force_refresh=args.refresh_catalog)
+        folder = google_temp_folder
+    elif args.folder_path:
         folder = Path(args.folder_path).expanduser().resolve()
     else:
         folder = pick_folder_with_dialog().expanduser().resolve()
 
-    if not folder.exists():
-        print(f"Error: folder does not exist: {folder}")
-        sys.exit(1)
-    if not folder.is_dir():
-        print(f"Error: not a folder: {folder}")
-        sys.exit(1)
-
     try:
-        FONTS_DIR.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"Error: could not create fonts directory {FONTS_DIR}: {e}")
-        sys.exit(1)
-
-    try:
-        font_files = find_font_files(folder)
-    except PermissionError as e:
-        print(f"Error: permission denied while scanning {folder}: {e}")
-        sys.exit(1)
-    except OSError as e:
-        print(f"Error: could not scan folder {folder}: {e}")
-        sys.exit(1)
-
-    if not font_files:
-        print(f"No font files (.otf, .ttf, .woff, .woff2) found in {folder}.")
-        sys.exit(0)
-
-    installed = []
-    skipped = []
-    failed = []
-
-    for font_path in font_files:
-        dest = FONTS_DIR / font_path.name
-
-        if dest.exists() and not args.force:
-            skipped.append(font_path.name)
-            continue
+        if not folder.exists():
+            print(f"Error: folder does not exist: {folder}")
+            sys.exit(1)
+        if not folder.is_dir():
+            print(f"Error: not a folder: {folder}")
+            sys.exit(1)
 
         try:
-            shutil.copy2(font_path, dest)
-            if PLATFORM == "win32" and dest.suffix.lower() in (".otf", ".ttf"):
-                register_font_windows(dest)
-            installed.append(font_path.name)
-        except PermissionError as e:
-            failed.append((font_path.name, f"permission denied: {e}"))
+            FONTS_DIR.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            failed.append((font_path.name, str(e)))
+            print(f"Error: could not create fonts directory {FONTS_DIR}: {e}")
+            sys.exit(1)
 
-    warning = None
-    if installed and PLATFORM not in ("darwin", "win32"):
-        warning = refresh_font_cache_linux()
+        try:
+            font_files = find_font_files(folder)
+        except PermissionError as e:
+            print(f"Error: permission denied while scanning {folder}: {e}")
+            sys.exit(1)
+        except OSError as e:
+            print(f"Error: could not scan folder {folder}: {e}")
+            sys.exit(1)
 
-    print()
-    print("=== Font Installation Summary ===")
-    print(f"Fonts found:     {len(font_files)}")
-    print(f"Installed:       {len(installed)}")
-    print(f"Skipped (exist): {len(skipped)}")
-    print(f"Failed:          {len(failed)}")
+        if not font_files:
+            print(f"No font files (.otf, .ttf, .woff, .woff2) found in {folder}.")
+            sys.exit(0)
 
-    if skipped:
+        installed = []
+        skipped = []
+        failed = []
+
+        for font_path in font_files:
+            dest = FONTS_DIR / font_path.name
+
+            if dest.exists() and not args.force:
+                skipped.append(font_path.name)
+                continue
+
+            try:
+                shutil.copy2(font_path, dest)
+                if PLATFORM == "win32" and dest.suffix.lower() in (".otf", ".ttf"):
+                    register_font_windows(dest)
+                installed.append(font_path.name)
+            except PermissionError as e:
+                failed.append((font_path.name, f"permission denied: {e}"))
+            except OSError as e:
+                failed.append((font_path.name, str(e)))
+
+        warning = None
+        if installed and PLATFORM not in ("darwin", "win32"):
+            warning = refresh_font_cache_linux()
+
         print()
-        print("Already installed (use --force to overwrite):")
-        for name in skipped:
-            print(f"  - {name}")
+        print("=== Font Installation Summary ===")
+        print(f"Fonts found:     {len(font_files)}")
+        print(f"Installed:       {len(installed)}")
+        print(f"Skipped (exist): {len(skipped)}")
+        print(f"Failed:          {len(failed)}")
 
-    if failed:
+        if skipped:
+            print()
+            print("Already installed (use --force to overwrite):")
+            for name in skipped:
+                print(f"  - {name}")
+
+        if failed:
+            print()
+            print("Failed to install:")
+            for name, reason in failed:
+                print(f"  - {name}: {reason}")
+
+        if warning:
+            print()
+            print(f"Warning: {warning}")
+
         print()
-        print("Failed to install:")
-        for name, reason in failed:
-            print(f"  - {name}: {reason}")
+        if installed:
+            if PLATFORM == "win32":
+                print("Done. Fonts are registered and ready to use immediately.")
+            elif PLATFORM == "darwin":
+                print("Done. macOS will pick up the new fonts automatically.")
+            else:
+                print("Done. Fonts installed to ~/.local/share/fonts.")
 
-    if warning:
-        print()
-        print(f"Warning: {warning}")
-
-    print()
-    if installed:
-        if PLATFORM == "win32":
-            print("Done. Fonts are registered and ready to use immediately.")
-        elif PLATFORM == "darwin":
-            print("Done. macOS will pick up the new fonts automatically.")
-        else:
-            print("Done. Fonts installed to ~/.local/share/fonts.")
-
-    if getattr(sys, "frozen", False) and PLATFORM == "win32":
-        # Keep the console window open when double-clicked from Explorer.
-        input("\nPress Enter to exit...")
+        if getattr(sys, "frozen", False) and PLATFORM == "win32":
+            # Keep the console window open when double-clicked from Explorer.
+            input("\nPress Enter to exit...")
+    finally:
+        if google_temp_folder:
+            shutil.rmtree(google_temp_folder, ignore_errors=True)
 
 
 if __name__ == "__main__":

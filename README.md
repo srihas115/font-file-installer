@@ -50,6 +50,17 @@ python3 install_fonts.py [folder_path]
 - Skips files that already exist there (use `--force` to overwrite).
 - Prints a summary of found/installed/skipped/failed fonts.
 
+### Installing straight from Google Fonts
+
+```bash
+python3 install_fonts.py --google Roboto "Open Sans:700,400i"
+```
+
+- Pass one or more family names instead of a folder. No API key, account, or extra install needed.
+- Add `:WEIGHTS` after a family to pick specific weights (default is `400,700`); append `i` to a weight for the italic cut, e.g. `"Merriweather:400,400i,700"`.
+- The catalog of available family names is cached locally for a week; pass `--refresh-catalog` to force a fresh copy.
+- This talks to the same public endpoints fonts.google.com's own website uses (no official, versioned API) — if a family name doesn't match, it'll suggest close matches.
+
 ## For developers: Mac app source (drag-and-drop)
 
 A native SwiftUI app lives in [`mac-app/`](mac-app/). Build it yourself with:
