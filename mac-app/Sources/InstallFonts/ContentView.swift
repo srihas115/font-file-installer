@@ -21,7 +21,7 @@ struct ContentView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 8) {
             Text("Install Fonts")
                 .font(.title2)
                 .bold()
@@ -41,8 +41,6 @@ struct ContentView: View {
             } else {
                 folderInstallView
             }
-
-            Spacer()
         }
         .padding(20)
         .alert(updateController.alertTitle, isPresented: $updateController.isShowingAlert) {
@@ -61,34 +59,38 @@ struct ContentView: View {
         VStack(spacing: 16) {
             dropZone
 
-            HStack {
-                Button("Choose Folder or Zip…") {
-                    chooseFolder()
+            VStack(spacing: 16) {
+                HStack {
+                    Button("Choose Folder or Zip…") {
+                        chooseFolder()
+                    }
+                    Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
+                    Spacer()
+                    Button(updateController.isChecking ? "Checking…" : "Check for updates") {
+                        updateController.checkForUpdates()
+                    }
+                    .disabled(updateController.isChecking)
+                    .help("Check for updates")
+                    Button(isInstalling ? "Installing…" : "Install") {
+                        runInstall()
+                    }
+                    .disabled(selectedFolder == nil || isInstalling)
+                    .keyboardShortcut(.defaultAction)
                 }
-                Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
-                Spacer()
-                Button(updateController.isChecking ? "Checking…" : "Check for updates") {
-                    updateController.checkForUpdates()
-                }
-                .disabled(updateController.isChecking)
-                .help("Check for updates")
-                Button(isInstalling ? "Installing…" : "Install") {
-                    runInstall()
-                }
-                .disabled(selectedFolder == nil || isInstalling)
-                .keyboardShortcut(.defaultAction)
-            }
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-                    .font(.callout)
-            }
+                if let errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
-            if let result {
-                InstallResultsView(result: result)
+                if let result {
+                    InstallResultsView(result: result)
+                }
             }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private var dropZone: some View {
@@ -99,7 +101,7 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(dropZoneFillColor)
             )
-            .frame(height: 250)
+            .frame(minHeight: 120, maxHeight: .infinity)
             .overlay(
                 VStack(spacing: 6) {
                     Image(systemName: "arrow.down.doc")
