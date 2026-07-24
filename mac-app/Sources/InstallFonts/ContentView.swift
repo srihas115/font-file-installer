@@ -1,7 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum InstallMode: String, CaseIterable {
+    case folder = "From Folder/Zip"
+    case google = "Google Fonts"
+}
+
 struct ContentView: View {
+    @State private var mode: InstallMode = .folder
     @State private var selectedFolder: URL?
     @State private var isTargeted = false
     @State private var forceOverwrite = false
@@ -15,6 +21,27 @@ struct ContentView: View {
                 .font(.title2)
                 .bold()
 
+            Picker("", selection: $mode) {
+                ForEach(InstallMode.allCases, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if mode == .google {
+                GoogleFontsView()
+            } else {
+                folderInstallView
+            }
+
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    private var folderInstallView: some View {
+        VStack(spacing: 16) {
             dropZone
 
             HStack {
@@ -37,12 +64,9 @@ struct ContentView: View {
             }
 
             if let result {
-                resultsView(result)
+                InstallResultsView(result: result)
             }
-
-            Spacer()
         }
-        .padding(20)
     }
 
     private var dropZone: some View {
@@ -74,37 +98,6 @@ struct ContentView: View {
             .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
                 handleDrop(providers)
             }
-    }
-
-    private func resultsView(_ result: InstallResult) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Divider()
-            Text("Found \(result.found.count) · Installed \(result.installed.count) · Skipped \(result.skipped.count) · Failed \(result.failed.count)")
-                .font(.callout)
-                .bold()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(result.installed, id: \.self) { name in
-                        Label(name, systemImage: "checkmark.circle")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                    }
-                    ForEach(result.skipped, id: \.self) { name in
-                        Label("\(name) (already installed)", systemImage: "arrow.uturn.left.circle")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    }
-                    ForEach(result.failed, id: \.name) { item in
-                        Label("\(item.name): \(item.reason)", systemImage: "xmark.circle")
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 160)
-        }
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
