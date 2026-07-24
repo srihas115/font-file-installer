@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct FontsourceView: View {
+    @StateObject private var previewStore = FontPreviewStore()
+
     @State private var searchText = ""
+    @State private var sortOrder: FontSortOrder = .popular
     @State private var families: [FontsourceFamily] = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
@@ -16,18 +19,63 @@ struct FontsourceView: View {
     @State private var installResult: InstallResult?
     @State private var installError: String?
 
+    private let popularFamilyIDs = [
+        "roboto",
+        "open-sans",
+        "inter",
+        "noto-sans",
+        "lato",
+        "montserrat",
+        "poppins",
+        "roboto-condensed",
+        "source-sans-3",
+        "oswald",
+        "raleway",
+        "merriweather",
+        "noto-serif",
+        "ubuntu",
+        "playfair-display",
+        "nunito",
+        "rubik",
+    ]
+
     private var filteredFamilies: [FontsourceFamily] {
-        guard !searchText.isEmpty else { return families }
-        return families.filter {
-            $0.family.localizedCaseInsensitiveContains(searchText)
-                || $0.id.localizedCaseInsensitiveContains(searchText)
+        let base = searchText.isEmpty
+            ? families
+            : families.filter {
+                $0.family.localizedCaseInsensitiveContains(searchText)
+                    || $0.id.localizedCaseInsensitiveContains(searchText)
+            }
+        return sorted(base)
+    }
+
+    private func sorted(_ families: [FontsourceFamily]) -> [FontsourceFamily] {
+        switch sortOrder {
+        case .alphabetical:
+            return families.sorted { $0.family < $1.family }
+        case .popular:
+            let rank = Dictionary(uniqueKeysWithValues: popularFamilyIDs.enumerated().map { ($0.element, $0.offset) })
+            return families.sorted {
+                (rank[$0.id] ?? Int.max, $0.family) < (rank[$1.id] ?? Int.max, $1.family)
+            }
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField("Search Fontsource…", text: $searchText)
-                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 8) {
+                TextField("Search Fontsource…", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+
+                Picker("", selection: $sortOrder) {
+                    ForEach(FontSortOrder.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 210)
+            }
 
             if isLoadingCatalog {
                 ProgressView("Loading Fontsource catalog…")
@@ -62,15 +110,16 @@ struct FontsourceView: View {
                         HStack {
                             Text(family.family)
                             Spacer()
-                            Text(family.category)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            FontPreviewSample(fontName: previewStore.fontName(for: .fontsource(family.id)))
                         }
                         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                         .padding(.vertical, 2)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectOnlyFamily(family)
+                        }
+                        .task(id: family.id) {
+                            previewStore.loadFontsourcePreview(for: family)
                         }
                     }
                     .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)

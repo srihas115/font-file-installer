@@ -19,8 +19,6 @@ struct ContentView: View {
     @State private var isInstalling = false
     @State private var result: InstallResult?
     @State private var errorMessage: String?
-    @State private var didAutoExpandForCatalog = false
-    @State private var didSetInitialWindowHeight = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -57,12 +55,6 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(updateController.alertMessage)
-        }
-        .onChange(of: mode) { newMode in
-            adjustWindowHeight(for: newMode)
-        }
-        .onAppear {
-            resetInitialFolderWindowHeight()
         }
     }
 
@@ -156,47 +148,6 @@ struct ContentView: View {
             return Color.secondary.opacity(0.12)
         }
         return Color.clear
-    }
-
-    private func adjustWindowHeight(for mode: InstallMode) {
-        let compactHeight: CGFloat = 310
-        let catalogHeight: CGFloat = 430
-
-        DispatchQueue.main.async {
-            guard let window = NSApp.keyWindow else { return }
-
-            switch mode {
-            case .google, .fontsource:
-                if window.frame.height < catalogHeight {
-                    resize(window, toHeight: catalogHeight)
-                }
-                didAutoExpandForCatalog = window.frame.height <= catalogHeight + 8
-
-            case .folder:
-                guard didAutoExpandForCatalog || window.frame.height <= catalogHeight + 8 else { return }
-                resize(window, toHeight: compactHeight)
-                didAutoExpandForCatalog = false
-            }
-        }
-    }
-
-    private func resetInitialFolderWindowHeight() {
-        let compactHeight: CGFloat = 310
-
-        DispatchQueue.main.async {
-            guard !didSetInitialWindowHeight, mode == .folder, let window = NSApp.keyWindow else { return }
-            resize(window, toHeight: compactHeight)
-            didSetInitialWindowHeight = true
-            didAutoExpandForCatalog = false
-        }
-    }
-
-    private func resize(_ window: NSWindow, toHeight height: CGFloat) {
-        var frame = window.frame
-        let maxY = frame.maxY
-        frame.size.height = height
-        frame.origin.y = maxY - height
-        window.setFrame(frame, display: true, animate: true)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

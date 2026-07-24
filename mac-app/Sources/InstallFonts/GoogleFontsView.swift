@@ -1,7 +1,15 @@
 import SwiftUI
 
+enum FontSortOrder: String, CaseIterable {
+    case alphabetical = "Alphabetical"
+    case popular = "Most Popular"
+}
+
 struct GoogleFontsView: View {
+    @StateObject private var previewStore = FontPreviewStore()
+
     @State private var searchText = ""
+    @State private var sortOrder: FontSortOrder = .popular
     @State private var families: [FontFamily] = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
@@ -16,15 +24,60 @@ struct GoogleFontsView: View {
     @State private var installResult: InstallResult?
     @State private var installError: String?
 
+    private let popularFamilies = [
+        "Roboto",
+        "Open Sans",
+        "Inter",
+        "Noto Sans",
+        "Lato",
+        "Montserrat",
+        "Poppins",
+        "Roboto Condensed",
+        "Source Sans 3",
+        "Oswald",
+        "Raleway",
+        "Merriweather",
+        "Noto Serif",
+        "Ubuntu",
+        "Playfair Display",
+        "Nunito",
+        "Rubik",
+    ]
+
     private var filteredFamilies: [FontFamily] {
-        guard !searchText.isEmpty else { return families }
-        return families.filter { $0.family.localizedCaseInsensitiveContains(searchText) }
+        let base = searchText.isEmpty
+            ? families
+            : families.filter { $0.family.localizedCaseInsensitiveContains(searchText) }
+        return sorted(base)
+    }
+
+    private func sorted(_ families: [FontFamily]) -> [FontFamily] {
+        switch sortOrder {
+        case .alphabetical:
+            return families.sorted { $0.family < $1.family }
+        case .popular:
+            let rank = Dictionary(uniqueKeysWithValues: popularFamilies.enumerated().map { ($0.element, $0.offset) })
+            return families.sorted {
+                (rank[$0.family] ?? Int.max, $0.family) < (rank[$1.family] ?? Int.max, $1.family)
+            }
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField("Search Google Fonts…", text: $searchText)
-                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 8) {
+                TextField("Search Google Fonts…", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+
+                Picker("", selection: $sortOrder) {
+                    ForEach(FontSortOrder.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 210)
+            }
 
             if isLoadingCatalog {
                 ProgressView("Loading font catalog…")
@@ -59,15 +112,16 @@ struct GoogleFontsView: View {
                         HStack {
                             Text(family.family)
                             Spacer()
-                            Text(family.category)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            FontPreviewSample(fontName: previewStore.fontName(for: .google(family.id)))
                         }
                         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                         .padding(.vertical, 2)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectOnlyFamily(family)
+                        }
+                        .task(id: family.id) {
+                            previewStore.loadGooglePreview(for: family)
                         }
                     }
                     .listRowBackground(selectedFamilyIDs.contains(family.id) ? Color.accentColor.opacity(0.15) : Color.clear)
