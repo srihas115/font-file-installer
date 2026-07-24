@@ -8,6 +8,21 @@ struct FontFamily: Decodable, Identifiable, Hashable {
     var subsets: [String]
 
     var id: String { family }
+
+    private enum CodingKeys: String, CodingKey {
+        case family
+        case category
+        case variants
+        case subsets
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        family = try container.decode(String.self, forKey: .family)
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "unknown"
+        variants = try container.decodeIfPresent([String].self, forKey: .variants) ?? ["regular"]
+        subsets = try container.decodeIfPresent([String].self, forKey: .subsets) ?? []
+    }
 }
 
 private struct FontFamilyMetadataResponse: Decodable {
