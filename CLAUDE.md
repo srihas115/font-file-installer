@@ -40,11 +40,15 @@ Key functions to know, by platform:
 
 ## Google Fonts one-click install
 
-Both platforms can install directly from Google's font catalog with **no API key**:
+Both platforms can install directly from Google's font catalog with **no required API key**:
 
-- Catalog listing: `GET https://fonts.google.com/metadata/fonts` (strip the leading
+- Default catalog listing: `GET https://fonts.google.com/metadata/fonts` (strip the leading
   `)]}'` XSSI-protection line before parsing JSON) — the same JSON the fonts.google.com
   website itself loads. Cached locally (~7 day TTL) since it's a few MB.
+- The macOS app also ships a bundled popularity ranking in
+  `mac-app/Resources/google-fonts-popularity.json`, refreshed locally with
+  `GOOGLE_FONTS_API_KEY=... ./Scripts/update_google_fonts_popularity.py`. This keeps
+  "Most Popular" useful for everyone without committing or requiring an API key.
 - Font files: `GET https://fonts.googleapis.com/css2?family=<Name>:wght@400;700&display=swap`
   — with the default/non-browser User-Agent both `urllib.request` and `URLSession` send,
   this returns raw **TTF** files (not WOFF2), which is what an OS font directory needs.
@@ -64,10 +68,9 @@ Implementation split:
   `find_font_files()`/copy loop unchanged, then cleaned up in `main()`'s `finally` block.
 - Swift: `GoogleFontsCatalog.swift` (networking/parsing/caching, no UI) and
   `GoogleFontsView.swift` (search/browse/install UI), wired into `ContentView.swift` via
-  a segmented `Picker` ("From Folder/Zip" vs. "Google Fonts"). Downloaded fonts land in a
-  temp dir passed straight into `FontInstaller.install(from:force:)` unchanged.
-  `InstallResultsView.swift` holds the installed/skipped/failed summary view shared by
-  both the folder/zip flow and the Google Fonts flow.
+  a segmented `Picker`. Downloaded fonts land in a temp dir passed straight into
+  `FontInstaller.install(from:force:)` unchanged. Install results are reported with a
+  system notification when notifications are enabled.
 
 ## Building and running locally
 
