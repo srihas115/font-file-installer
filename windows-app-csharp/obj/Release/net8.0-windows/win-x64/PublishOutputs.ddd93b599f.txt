@@ -1,0 +1,7 @@
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\Font-Installer-Windows.pdb
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\D3DCompiler_47_cor3.dll
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\PenImc_cor3.dll
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\PresentationNative_cor3.dll
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\vcruntime140_cor3.dll
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\wpfgfx_cor3.dll
+C:\Users\sriha\vscodeprojects\font-file-installer\dist\windows\Font-Installer-Windows.exe

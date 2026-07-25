@@ -8,7 +8,7 @@ Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/r
 
 | Your computer | Download | How to run it |
 |---|---|---|
-| **Windows** | `install-fonts.exe` | Double-click it. A window opens, let you pick your fonts folder, and installs them — no install step needed. |
+| **Windows** | `Font-Installer-Windows.exe` | Double-click it. Like the Mac app, use the segmented tabs to install from a folder/zip, browse Google Fonts or Fontsource, or manage installed fonts — no install step needed. |
 | **Mac** | `Font Installer.zip` | Unzip it and open **Font Installer.app**. If macOS blocks it, see [macOS Installation](#macos-installation) below — it's a one-time, one-command fix. Then drag your fonts folder onto the window and click Install. |
 | **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
 
@@ -75,9 +75,13 @@ python3 install_fonts.py --google Roboto "Open Sans:700,400i"
 - The catalog of available family names is cached locally for a week; pass `--refresh-catalog` to force a fresh copy.
 - This talks to the same public endpoints fonts.google.com's own website uses (no official, versioned API) — if a family name doesn't match, it'll suggest close matches.
 
-## For developers: Mac app source (drag-and-drop)
+## For developers: native desktop apps
 
-A native SwiftUI app lives in [`mac-app/`](mac-app/). Build it yourself with:
+The Mac and Windows apps provide the same core workflow: install from a folder or ZIP, browse Google Fonts and Fontsource, check for updates, and view/remove fonts installed for the current user.
+
+### macOS app
+
+The native SwiftUI app lives in [`mac-app/`](mac-app/). Build it with:
 
 ```bash
 cd mac-app
@@ -85,7 +89,7 @@ cd mac-app
 open "Font Installer.app"
 ```
 
-Use the **Check for updates** button in the app to check GitHub Releases for a newer download. Use the **Fontsource** tab to search and install fonts from Fontsource.
+Use the segmented mode picker to switch between folder/ZIP installs, Google Fonts, Fontsource, and installed fonts.
 
 ### Refreshing the bundled Google Fonts popularity list
 
@@ -98,7 +102,16 @@ GOOGLE_FONTS_API_KEY="your_key_here" ./Scripts/update_google_fonts_popularity.py
 
 Commit the updated `Resources/google-fonts-popularity.json` file. Do not commit your API key.
 
-This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds it (plus the Windows `.exe` and Linux binary via PyInstaller) automatically whenever a `v*` tag is pushed.
+### Windows app
+
+The native Windows app lives in [`windows-app-csharp/`](windows-app-csharp/) and is implemented with C#/.NET 8 WPF. It uses the same compact, segmented layout as the Mac app. Build a self-contained release executable on Windows with:
+
+```powershell
+dotnet publish .\windows-app-csharp\FontInstaller.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o .\dist\windows
+Start-Process .\dist\windows\Font-Installer-Windows.exe
+```
+
+This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds the C# Windows `.exe`, Linux binary, and macOS app automatically whenever a `v*` tag is pushed.
 
 ## License
 
@@ -106,12 +119,13 @@ MIT
 
 ## How this works
 
-This repo has two independent ways to install fonts: scan a folder or `.zip` file for `.otf`/`.ttf`/`.woff`/`.woff2` files and copy each one into the current user's font directory, skipping anything already installed unless told to overwrite.
+This repo has three implementations of the same font-install flow: scan a folder or `.zip` file for `.otf`/`.ttf`/`.woff`/`.woff2` files, copy each into the current user's font directory, and skip existing files unless asked to overwrite.
 
-- **[`install_fonts.py`](install_fonts.py)** — the core implementation, a single Python script using only the standard library. It detects the OS (`sys.platform`) and adjusts three things per platform: how it opens a folder picker (AppleScript on macOS, Tk on Windows/Linux), where the fonts directory lives (`~/Library/Fonts`, `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, or `~/.local/share/fonts`), and what extra step is needed after copying (Windows registry entry + `AddFontResource` call so the font works without a reboot; `fc-cache -f` on Linux to refresh the font cache). This same script is also what gets frozen into the Windows `.exe` and Linux binary — see below.
-- **[`mac-app/`](mac-app/)** — a native SwiftUI app that wraps the same install logic (`FontInstaller.swift` mirrors the scan/copy behavior of `install_fonts.py`) behind a window with a drag-and-drop target and a "Choose Folder" button, built with Swift Package Manager rather than a full Xcode project.
+- **[`install_fonts.py`](install_fonts.py)** — a dependency-free command-line tool for all platforms and the source of the Linux binary. It detects the OS, installs into the correct user font directory, registers fonts on Windows, and refreshes the Linux cache.
+- **[`mac-app/`](mac-app/)** — a native SwiftUI app for macOS 13+.
+- **[`windows-app-csharp/`](windows-app-csharp/)** — a native C#/.NET 8 WPF app for Windows. It registers `.ttf` and `.otf` files with Windows so they are ready to use immediately.
 
-Nothing here needs installing to build, test, or run from source — the Python script only needs a Python 3 interpreter, and the Swift app only needs Xcode's Command Line Tools (`swift build`).
+The Python CLI needs Python 3, the Mac app needs Xcode Command Line Tools, and the Windows app needs the .NET 8 SDK to build from source. Release downloads are self-contained and need none of these tools.
 
 Run the Python unit tests with:
 
@@ -119,4 +133,4 @@ Run the Python unit tests with:
 python3 -m unittest discover -s tests
 ```
 
-**Getting pre-built downloads to the Releases page** is handled by [`.github/workflows/release.yml`](.github/workflows/release.yml), a GitHub Actions workflow that runs whenever a tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push origin v1.0.0`). It runs three jobs in parallel — freezing `install_fonts.py` into a standalone `.exe` on a Windows runner and a standalone binary on a Linux runner (both via PyInstaller, so end users don't need Python installed), and building/zipping the SwiftUI `.app` on a macOS runner — then a fourth job collects all three artifacts and publishes them as a GitHub Release. That's why the Releases page stays empty until a version tag is pushed: nothing runs on a plain commit to `main`.
+**Getting pre-built downloads to the Releases page** is handled by [`.github/workflows/release.yml`](.github/workflows/release.yml), a GitHub Actions workflow that runs whenever a tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push origin v1.0.0`). It builds the self-contained C# Windows executable, the PyInstaller Linux binary, and the zipped SwiftUI macOS app, then publishes all three to the GitHub Release.

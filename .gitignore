@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 run.txt
 update.txt
+build/
+dist/
+*.spec

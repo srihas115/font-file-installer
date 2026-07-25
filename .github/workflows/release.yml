@@ -11,15 +11,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-dotnet@v4
         with:
-          python-version: "3.12"
-      - run: pip install pyinstaller
-      - run: pyinstaller --onefile --name install-fonts install_fonts.py
+          dotnet-version: "8.0.x"
+      - run: dotnet publish windows-app-csharp/FontInstaller.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o dist/windows
       - uses: actions/upload-artifact@v4
         with:
           name: install-fonts-windows
-          path: dist/install-fonts.exe
+          path: dist/windows/Font-Installer-Windows.exe
 
   linux-binary:
     runs-on: ubuntu-latest
@@ -66,6 +65,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/install-fonts-windows/install-fonts.exe
+            artifacts/install-fonts-windows/Font-Installer-Windows.exe
             artifacts/install-fonts-linux/install-fonts
             artifacts/install-fonts-macos/Font Installer.zip
