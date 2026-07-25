@@ -6,6 +6,7 @@ struct FontsourceView: View {
     @State private var searchText = ""
     @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
     @State private var families: [FontsourceFamily] = []
+    @State private var installedFamilyNames: Set<String> = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
 
@@ -47,7 +48,7 @@ struct FontsourceView: View {
                 $0.family.localizedCaseInsensitiveContains(searchText)
                     || $0.id.localizedCaseInsensitiveContains(searchText)
             }
-        return sorted(base)
+        return sorted(base.filter { !isInstalled($0.family) })
     }
 
     private func sorted(_ families: [FontsourceFamily]) -> [FontsourceFamily] {
@@ -145,6 +146,7 @@ struct FontsourceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             await loadCatalog()
+            refreshInstalledFamilies()
         }
     }
 
@@ -261,6 +263,25 @@ struct FontsourceView: View {
         isLoadingCatalog = false
     }
 
+    private func refreshInstalledFamilies() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let installed = InstalledFontLookup.installedFamilyNames()
+            DispatchQueue.main.async {
+                installedFamilyNames = installed
+                selectedFamilyIDs = selectedFamilyIDs.filter { id in
+                    !installed.contains(InstalledFontLookup.normalizedFamilyName(id))
+                }
+                if let selectedFamily, installed.contains(InstalledFontLookup.normalizedFamilyName(selectedFamily.family)) {
+                    self.selectedFamily = nil
+                }
+            }
+        }
+    }
+
+    private func isInstalled(_ familyName: String) -> Bool {
+        installedFamilyNames.contains(InstalledFontLookup.normalizedFamilyName(familyName))
+    }
+
     private func installSelectedFamilies() {
         let selectedFamilies = families.filter { selectedFamilyIDs.contains($0.id) }
         guard !selectedFamilies.isEmpty else { return }
@@ -292,6 +313,7 @@ struct FontsourceView: View {
                 let finalResult = combinedResult
                 await MainActor.run {
                     isInstalling = false
+                    refreshInstalledFamilies()
                     InstallNotifier.notify(result: finalResult)
                 }
             } catch {

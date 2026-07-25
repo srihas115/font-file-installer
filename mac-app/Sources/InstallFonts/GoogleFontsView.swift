@@ -12,6 +12,7 @@ struct GoogleFontsView: View {
     @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
     @AppStorage(AppSettings.googleFontsAPIKeyKey) private var googleFontsAPIKey = ""
     @State private var families: [FontFamily] = []
+    @State private var installedFamilyNames: Set<String> = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
 
@@ -30,7 +31,7 @@ struct GoogleFontsView: View {
         let base = searchText.isEmpty
             ? families
             : families.filter { $0.family.localizedCaseInsensitiveContains(searchText) }
-        return sorted(base)
+        return sorted(base.filter { !isInstalled($0.family) })
     }
 
     private func sorted(_ families: [FontFamily]) -> [FontFamily] {
@@ -131,6 +132,7 @@ struct GoogleFontsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             await loadCatalog(forceRefresh: false)
+            refreshInstalledFamilies()
         }
         .onChange(of: googleFontsAPIKey) { _ in
             Task { await loadCatalog(forceRefresh: true) }
@@ -264,6 +266,25 @@ struct GoogleFontsView: View {
         isLoadingCatalog = false
     }
 
+    private func refreshInstalledFamilies() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let installed = InstalledFontLookup.installedFamilyNames()
+            DispatchQueue.main.async {
+                installedFamilyNames = installed
+                selectedFamilyIDs = selectedFamilyIDs.filter { id in
+                    !installed.contains(InstalledFontLookup.normalizedFamilyName(id))
+                }
+                if let selectedFamily, installed.contains(InstalledFontLookup.normalizedFamilyName(selectedFamily.family)) {
+                    self.selectedFamily = nil
+                }
+            }
+        }
+    }
+
+    private func isInstalled(_ familyName: String) -> Bool {
+        installedFamilyNames.contains(InstalledFontLookup.normalizedFamilyName(familyName))
+    }
+
     private func installSelectedFamilies() {
         let selectedFamilies = families.filter { selectedFamilyIDs.contains($0.id) }
         guard !selectedFamilies.isEmpty else { return }
@@ -302,6 +323,7 @@ struct GoogleFontsView: View {
                 let finalResult = combinedResult
                 await MainActor.run {
                     isInstalling = false
+                    refreshInstalledFamilies()
                     InstallNotifier.notify(result: finalResult)
                 }
             } catch {
