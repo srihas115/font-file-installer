@@ -342,7 +342,7 @@ struct InstalledFontsView: View {
     }
 
     private func metadataHelp(for group: InstalledFontGroup) -> String {
-        "Source: \(group.source)\nLicense: \(group.license ?? "Not available")\nSize: \(formattedFileSize(group.totalSize))"
+        "Source: \(group.source)\nLicense: \(group.license ?? "Not available")\nInstalled: \(formattedInstallDate(group.installedAt))\nSize: \(formattedFileSize(group.totalSize))"
     }
 
     private func groupSortPrecedes(_ lhs: InstalledFontGroup, _ rhs: InstalledFontGroup, sortOrder: InstalledFontsSortOrder) -> Bool {
@@ -367,6 +367,11 @@ struct InstalledFontsView: View {
 
     private func formattedFileSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func formattedInstallDate(_ date: Date?) -> String {
+        guard let date else { return "Not available" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     private func firstMetadataValue(in items: [InstalledFontItem], keyPath: KeyPath<InstalledFontItem, String?>) -> String? {
@@ -447,6 +452,7 @@ private struct FontMetadataPopover: View {
             VStack(alignment: .leading, spacing: 8) {
                 metadataRow(label: "Source", value: group.source)
                 metadataRow(label: "License", value: group.license ?? "Not available")
+                metadataRow(label: "Date installed", value: formattedInstallDate(group.installedAt))
                 metadataRow(label: "Total size", value: formattedFileSize(group.totalSize))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Files")
@@ -495,5 +501,10 @@ private struct FontMetadataPopover: View {
 
     private func formattedFileSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func formattedInstallDate(_ date: Date?) -> String {
+        guard let date else { return "Not available" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
