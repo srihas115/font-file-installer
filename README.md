@@ -18,7 +18,18 @@ When you unzip `Font Installer.zip` and try to open **Font Installer.app**, macO
 
 > **"Font Installer.app" is damaged and can't be opened. You should move it to the Trash.**
 
-**Your download is not actually broken.** This message shows up because the app isn't signed with a paid Apple Developer certificate ($99/year — this project doesn't have one). macOS quarantines any unsigned app downloaded from a browser and, instead of a clear "unidentified developer" warning, newer versions of macOS show this scarier "damaged" message for unsigned apps. It's misleading, but the fix is quick:
+**Here is how to fix that:**
+1. Double click the Font Installer.app from your downloads
+2. Press **Done**
+3. Open **Settings** (Spotlight → search "System Settings")
+4. Scroll down, and open **Privacy & Security**
+5. Scroll down until you see **"Font Installer.app" was blocked to protect your Mac.**
+6. Press **Open Anyway**
+7. Press **Open Anyway** again
+8. Enter in your password or Touch ID
+9. Font Installer should now be working!
+
+Here is a Terminal CLI fix if the above doesn't work.
 
 1. Open **Terminal** (Spotlight → search "Terminal").
 2. Type `xattr -cr "` (with the trailing space and quote), then drag **Font Installer.app** from Finder into the Terminal window — this fills in the correct path automatically. Add a closing `"` and press Enter:
@@ -33,6 +44,8 @@ If you still see a prompt at this point, it'll be the milder **"Font Installer.a
 2. In the dialog that appears, click **Open** to confirm.
 
 You only need to do this once per download; after that, the app opens normally like any other.
+
+Here is why this happens: **Your download is not actually broken.** This message shows up because the app isn't signed with a paid Apple Developer certificate ($99/year — this project doesn't have one). macOS quarantines any unsigned app downloaded from a browser and, instead of a clear "unidentified developer" warning, newer versions of macOS show this scarier "damaged" message for unsigned apps. It's misleading, but it is what it is.
 
 ## For developers: command-line option
 
