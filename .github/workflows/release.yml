@@ -48,11 +48,11 @@ jobs:
         run: codesign --force --deep --sign - "Font Installer.app"
       - name: Zip app bundle
         working-directory: mac-app
-        run: ditto -c -k --sequesterRsrc --keepParent "Font Installer.app" "Install-Fonts-macOS.zip"
+        run: ditto -c -k --sequesterRsrc --keepParent "Font Installer.app" "Font Installer.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: install-fonts-macos
-          path: mac-app/Install-Fonts-macOS.zip
+          path: mac-app/Font Installer.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -68,4 +68,4 @@ jobs:
           files: |
             artifacts/install-fonts-windows/install-fonts.exe
             artifacts/install-fonts-linux/install-fonts
-            artifacts/install-fonts-macos/Install-Fonts-macOS.zip
+            artifacts/install-fonts-macos/Font Installer.zip

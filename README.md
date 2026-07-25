@@ -9,12 +9,12 @@ Go to the [**Releases page**](https://github.com/srihas115/font-file-installer/r
 | Your computer | Download | How to run it |
 |---|---|---|
 | **Windows** | `install-fonts.exe` | Double-click it. A window opens, let you pick your fonts folder, and installs them — no install step needed. |
-| **Mac** | `Install-Fonts-macOS.zip` | Unzip it and open **Font Installer.app**. If macOS blocks it, see [macOS Installation](#macos-installation) below — it's a one-time, one-command fix. Then drag your fonts folder onto the window and click Install. |
+| **Mac** | `Font Installer.zip` | Unzip it and open **Font Installer.app**. If macOS blocks it, see [macOS Installation](#macos-installation) below — it's a one-time, one-command fix. Then drag your fonts folder onto the window and click Install. |
 | **Linux** | `install-fonts` | Right-click → Properties → **Allow executing file as program** (or run `chmod +x install-fonts` in a terminal), then double-click or run it. It'll open a folder picker. |
 
 ## macOS Installation
 
-When you unzip `Install-Fonts-macOS.zip` and try to open **Font Installer.app**, macOS may show:
+When you unzip `Font Installer.zip` and try to open **Font Installer.app**, macOS may show:
 
 > **"Font Installer.app" is damaged and can't be opened. You should move it to the Trash.**
 
