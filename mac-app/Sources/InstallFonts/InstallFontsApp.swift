@@ -4,6 +4,7 @@ import SwiftUI
 struct InstallFontsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(AppSettings.appearanceModeKey) private var appearanceMode = AppearanceMode.dark.rawValue
     @StateObject private var updateController = UpdateCheckController()
 
     var body: some Scene {
@@ -11,6 +12,7 @@ struct InstallFontsApp: App {
             ContentView()
                 .environmentObject(updateController)
                 .frame(minWidth: 600, maxWidth: 760, minHeight: 430, maxHeight: 520)
+                .preferredColorScheme(selectedAppearance.colorScheme)
         }
         .defaultSize(width: 650, height: 430)
         .windowResizability(.contentSize)
@@ -36,6 +38,11 @@ struct InstallFontsApp: App {
 
         Settings {
             SettingsView()
+                .preferredColorScheme(selectedAppearance.colorScheme)
         }
+    }
+
+    private var selectedAppearance: AppearanceMode {
+        AppearanceMode(rawValue: appearanceMode) ?? .dark
     }
 }

@@ -18,6 +18,8 @@ struct FontsourceView: View {
     @State private var isInstalling = false
     @State private var installError: String?
 
+    private let providerURL = URL(string: "https://fontsource.org/")!
+
     private let popularFamilyIDs = [
         "roboto",
         "open-sans",
@@ -75,6 +77,8 @@ struct FontsourceView: View {
                 .labelsHidden()
                 .frame(width: 130)
             }
+            ConfirmingTextLink(title: "Fonts by Fontsource", url: providerURL)
+                .font(.caption)
 
             if isLoadingCatalog {
                 ProgressView("Loading Fontsource catalog…")
@@ -167,8 +171,13 @@ struct FontsourceView: View {
             HStack {
                 Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                 Spacer()
-                Button(isInstalling ? "Installing…" : installButtonTitle) {
+                Button {
                     installSelectedFamilies()
+                } label: {
+                    LoadingButtonLabel(
+                        title: isInstalling ? "Installing…" : installButtonTitle,
+                        isLoading: isInstalling
+                    )
                 }
                 .disabled(isInstalling || selectedFamilyIDs.isEmpty || selectedWeights.isEmpty)
                 .keyboardShortcut(.defaultAction)
@@ -276,7 +285,9 @@ struct FontsourceView: View {
                     let tempDir = try await FontsourceCatalog.downloadFonts(entries, family: family.family)
                     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-                    combinedResult.append(FontInstaller.install(from: tempDir, force: force))
+                    let outcome = FontInstaller.install(from: tempDir, force: force)
+                    InstalledFontRegistry.record(outcome, source: "Fontsource · \(family.family)")
+                    combinedResult.append(outcome)
                 }
                 let finalResult = combinedResult
                 await MainActor.run {

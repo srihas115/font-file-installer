@@ -8,6 +8,8 @@ struct AboutView: View {
     private let coffeeURL = URL(string: "https://buymeacoffee.com/srihas")!
 
     @State private var hoveredIcon: String?
+    @State private var pendingURL: URL?
+    @State private var isShowingLinkConfirmation = false
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0"
@@ -44,6 +46,17 @@ struct AboutView: View {
         .padding(.horizontal, 32)
         .padding(.vertical, 24)
         .frame(width: 300, height: 206)
+        .alert("Open Link?", isPresented: $isShowingLinkConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Open") {
+                if let pendingURL {
+                    NSWorkspace.shared.open(pendingURL)
+                }
+                pendingURL = nil
+            }
+        } message: {
+            Text("This will take you to \(pendingURL?.absoluteString ?? "that link"). Are you sure?")
+        }
     }
 
     private func iconButton(
@@ -54,7 +67,8 @@ struct AboutView: View {
         let isHovered = hoveredIcon == label
 
         return Button {
-            NSWorkspace.shared.open(url)
+            pendingURL = url
+            isShowingLinkConfirmation = true
         } label: {
             if let image = socialImage(named: imageName) {
                 Image(nsImage: image)

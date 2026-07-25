@@ -7,6 +7,7 @@ enum InstallMode: String, CaseIterable {
     case folder = "From Folder/Zip"
     case google = "Google Fonts"
     case fontsource = "Fontsource"
+    case installed = "Installed"
 }
 
 struct ContentView: View {
@@ -22,6 +23,8 @@ struct ContentView: View {
     @State private var isInstalling = false
     @State private var errorMessage: String?
     @State private var isShowingNotificationPrompt = false
+    @State private var pendingExternalURL: URL?
+    @State private var isShowingExternalLinkConfirmation = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -42,6 +45,8 @@ struct ContentView: View {
                     GoogleFontsView()
                 } else if mode == .fontsource {
                     FontsourceView()
+                } else if mode == .installed {
+                    InstalledFontsView()
                 } else {
                     folderInstallView
                 }
@@ -52,7 +57,8 @@ struct ContentView: View {
         .alert(updateController.alertTitle, isPresented: $updateController.isShowingAlert) {
             if let releaseURL = updateController.releaseURL {
                 Button("Open Releases") {
-                    NSWorkspace.shared.open(releaseURL)
+                    pendingExternalURL = releaseURL
+                    isShowingExternalLinkConfirmation = true
                 }
             }
             Button("OK", role: .cancel) {}
@@ -70,6 +76,17 @@ struct ContentView: View {
         } message: {
             Text("Font Installer can send a notification after each install so you know how many fonts were installed, skipped, or failed.")
         }
+        .alert("Open Link?", isPresented: $isShowingExternalLinkConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Open") {
+                if let pendingExternalURL {
+                    NSWorkspace.shared.open(pendingExternalURL)
+                }
+                pendingExternalURL = nil
+            }
+        } message: {
+            Text("This will take you to \(pendingExternalURL?.absoluteString ?? "that link"). Are you sure?")
+        }
         .onAppear {
             if !hasAskedNotificationPermission {
                 isShowingNotificationPrompt = true
@@ -85,13 +102,23 @@ struct ContentView: View {
                 HStack {
                     Toggle("Overwrite existing fonts", isOn: $forceOverwrite)
                     Spacer()
-                    Button(updateController.isChecking ? "Checking…" : "Check for updates") {
+                    Button {
                         updateController.checkForUpdates()
+                    } label: {
+                        LoadingButtonLabel(
+                            title: updateController.isChecking ? "Checking…" : "Check for updates",
+                            isLoading: updateController.isChecking
+                        )
                     }
                     .disabled(updateController.isChecking)
                     .help("Check for updates")
-                    Button(isInstalling ? "Installing…" : "Install") {
+                    Button {
                         runInstall()
+                    } label: {
+                        LoadingButtonLabel(
+                            title: isInstalling ? "Installing…" : "Install",
+                            isLoading: isInstalling
+                        )
                     }
                     .disabled(selectedFolder == nil || isInstalling)
                     .keyboardShortcut(.defaultAction)
@@ -228,6 +255,7 @@ struct ContentView: View {
                 if outcome.found.isEmpty {
                     self.errorMessage = "No font files (.otf, .ttf, .woff, .woff2) found in that folder."
                 } else {
+                    InstalledFontRegistry.record(outcome, source: selectedFolder.lastPathComponent)
                     InstallNotifier.notify(result: outcome)
                 }
             }
