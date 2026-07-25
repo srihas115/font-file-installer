@@ -9,8 +9,7 @@ struct GoogleFontsView: View {
     @StateObject private var previewStore = FontPreviewStore()
 
     @State private var searchText = ""
-    @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
-    @AppStorage(AppSettings.googleFontsAPIKeyKey) private var googleFontsAPIKey = ""
+    @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.alphabetical.rawValue
     @State private var families: [FontFamily] = []
     @State private var installedFamilyNames: Set<String> = []
     @State private var isLoadingCatalog = false
@@ -39,9 +38,6 @@ struct GoogleFontsView: View {
         case .alphabetical:
             return families.sorted { $0.family < $1.family }
         case .popular:
-            if AppSettings.googleFontsAPIKey != nil {
-                return families
-            }
             let rank = GoogleFontsCatalog.bundledPopularityRank()
             return families.sorted {
                 (rank[$0.family] ?? Int.max, $0.family) < (rank[$1.family] ?? Int.max, $1.family)
@@ -133,9 +129,6 @@ struct GoogleFontsView: View {
         .task {
             await loadCatalog(forceRefresh: false)
             refreshInstalledFamilies()
-        }
-        .onChange(of: googleFontsAPIKey) { _ in
-            Task { await loadCatalog(forceRefresh: true) }
         }
     }
 

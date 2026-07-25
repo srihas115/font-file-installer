@@ -4,7 +4,7 @@ struct FontsourceView: View {
     @StateObject private var previewStore = FontPreviewStore()
 
     @State private var searchText = ""
-    @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
+    @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.alphabetical.rawValue
     @State private var families: [FontsourceFamily] = []
     @State private var installedFamilyNames: Set<String> = []
     @State private var isLoadingCatalog = false
@@ -21,26 +21,6 @@ struct FontsourceView: View {
 
     private let providerURL = URL(string: "https://fontsource.org/")!
 
-    private let popularFamilyIDs = [
-        "roboto",
-        "open-sans",
-        "inter",
-        "noto-sans",
-        "lato",
-        "montserrat",
-        "poppins",
-        "roboto-condensed",
-        "source-sans-3",
-        "oswald",
-        "raleway",
-        "merriweather",
-        "noto-serif",
-        "ubuntu",
-        "playfair-display",
-        "nunito",
-        "rubik",
-    ]
-
     private var filteredFamilies: [FontsourceFamily] {
         let base = searchText.isEmpty
             ? families
@@ -56,11 +36,25 @@ struct FontsourceView: View {
         case .alphabetical:
             return families.sorted { $0.family < $1.family }
         case .popular:
-            let rank = Dictionary(uniqueKeysWithValues: popularFamilyIDs.enumerated().map { ($0.element, $0.offset) })
+            let rank = GoogleFontsCatalog.bundledPopularityRank()
             return families.sorted {
-                (rank[$0.id] ?? Int.max, $0.family) < (rank[$1.id] ?? Int.max, $1.family)
+                (fontsourcePopularityRank(for: $0, rank: rank), $0.family) < (fontsourcePopularityRank(for: $1, rank: rank), $1.family)
             }
         }
+    }
+
+    private func fontsourcePopularityRank(for family: FontsourceFamily, rank: [String: Int]) -> Int {
+        rank[family.family]
+            ?? rank[fontsourceFamilyName(from: family.id)]
+            ?? Int.max
+    }
+
+    private func fontsourceFamilyName(from id: String) -> String {
+        id.split(separator: "-", omittingEmptySubsequences: true)
+            .map { part in
+                part.prefix(1).uppercased() + part.dropFirst()
+            }
+            .joined(separator: " ")
     }
 
     var body: some View {

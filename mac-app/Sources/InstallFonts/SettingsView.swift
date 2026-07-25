@@ -2,38 +2,38 @@ import SwiftUI
 import UserNotifications
 
 struct SettingsView: View {
-    @AppStorage(AppSettings.defaultSortOrderKey) private var defaultSortOrder = FontSortOrder.popular.rawValue
+    @AppStorage(AppSettings.defaultSortOrderKey) private var defaultSortOrder = FontSortOrder.alphabetical.rawValue
     @AppStorage(AppSettings.notificationsEnabledKey) private var notificationsEnabled = false
     @AppStorage(AppSettings.appearanceModeKey) private var appearanceMode = AppearanceMode.dark.rawValue
     @AppStorage(AppSettings.installedFontsSortOrderKey) private var installedFontsSortOrder = InstalledFontsSortOrder.recentlyInstalled.rawValue
-    @AppStorage(AppSettings.googleFontsAPIKeyKey) private var googleFontsAPIKey = ""
 
     var body: some View {
-        Form {
-            Picker("Appearance", selection: $appearanceMode) {
-                ForEach(AppearanceMode.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option.rawValue)
+        VStack(spacing: 12) {
+            Form {
+                Section {
+                    Picker("Appearance", selection: $appearanceMode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option.rawValue)
+                        }
+                    }
+
+                    Picker("Default sort", selection: $defaultSortOrder) {
+                        ForEach(FontSortOrder.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option.rawValue)
+                        }
+                    }
+
+                    Picker("Installed fonts sort", selection: $installedFontsSortOrder) {
+                        ForEach(InstalledFontsSortOrder.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option.rawValue)
+                        }
+                    }
+
+                    Toggle("Install notifications", isOn: notificationsBinding)
                 }
             }
-
-            Picker("Default sort", selection: $defaultSortOrder) {
-                ForEach(FontSortOrder.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option.rawValue)
-                }
-            }
-
-            Picker("Installed fonts sort", selection: $installedFontsSortOrder) {
-                ForEach(InstalledFontsSortOrder.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option.rawValue)
-                }
-            }
-
-            SecureField("Google Fonts API key", text: $googleFontsAPIKey)
-                .textFieldStyle(.roundedBorder)
-
-            Toggle("Install notifications", isOn: notificationsBinding)
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
         .padding(12)
         .frame(width: 420)
     }
