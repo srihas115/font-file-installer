@@ -29,6 +29,14 @@ private struct FontFamilyMetadataResponse: Decodable {
     var familyMetadataList: [FontFamily]
 }
 
+private struct OfficialWebFontsResponse: Decodable {
+    var items: [FontFamily]
+}
+
+private struct BundledPopularityResponse: Decodable {
+    var families: [String]
+}
+
 /// A single weight/style combination to request from the css2 API.
 struct FontWeight: Hashable {
     var weight: Int
@@ -49,8 +57,10 @@ struct FontFaceEntry {
 enum GoogleFontsCatalog {
     static let userAgent = "font-file-installer-macOS/1.0"
     private static let metadataURL = URL(string: "https://fonts.google.com/metadata/fonts")!
+    private static let officialAPIURLString = "https://www.googleapis.com/webfonts/v1/webfonts"
     private static let css2URLString = "https://fonts.googleapis.com/css2"
     private static let catalogCacheTTL: TimeInterval = 7 * 24 * 3600
+    private static var cachedBundledPopularityRank: [String: Int]?
 
     enum CatalogError: LocalizedError {
         case unreachable(Error)
@@ -67,14 +77,89 @@ enum GoogleFontsCatalog {
     }
 
     private static var cacheFileURL: URL {
+        cacheFileURL(named: "google-fonts-metadata.json")
+    }
+
+    private static var officialCacheFileURL: URL {
+        cacheFileURL(named: "google-fonts-official-metadata.json")
+    }
+
+    private static func cacheFileURL(named fileName: String) -> URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("font-file-installer/google-fonts-metadata.json")
+        return base.appendingPathComponent("font-file-installer/\(fileName)")
     }
 
     /// Loads the family catalog, using a cached copy (up to a week old) when possible.
     /// Falls back to a stale cache on network failure rather than throwing, if one exists.
     static func loadCatalog(forceRefresh: Bool = false) async throws -> [FontFamily] {
+        if let apiKey = AppSettings.googleFontsAPIKey {
+            return try await loadOfficialCatalog(apiKey: apiKey, forceRefresh: forceRefresh)
+        }
+
+        return try await loadUnofficialCatalog(forceRefresh: forceRefresh)
+    }
+
+    static func bundledPopularityRank() -> [String: Int] {
+        if let cachedBundledPopularityRank {
+            return cachedBundledPopularityRank
+        }
+
+        guard let url = bundledPopularityURL(),
+              let data = try? Data(contentsOf: url),
+              let response = try? JSONDecoder().decode(BundledPopularityResponse.self, from: data) else {
+            return [:]
+        }
+
+        let rank = Dictionary(uniqueKeysWithValues: response.families.enumerated().map { ($0.element, $0.offset) })
+        cachedBundledPopularityRank = rank
+        return rank
+    }
+
+    private static func bundledPopularityURL() -> URL? {
+        if let bundled = Bundle.main.url(forResource: "google-fonts-popularity", withExtension: "json") {
+            return bundled
+        }
+
+        let localCandidates = [
+            URL(fileURLWithPath: "Resources/google-fonts-popularity.json"),
+            URL(fileURLWithPath: "mac-app/Resources/google-fonts-popularity.json"),
+        ]
+        return localCandidates.first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    private static func loadOfficialCatalog(apiKey: String, forceRefresh: Bool) async throws -> [FontFamily] {
+        let cacheURL = officialCacheFileURL
+
+        if !forceRefresh, isFresh(cacheURL), let cached = try? cachedOfficialCatalog(at: cacheURL) {
+            return cached
+        }
+
+        do {
+            var components = URLComponents(string: officialAPIURLString)
+            components?.queryItems = [
+                URLQueryItem(name: "sort", value: "popularity"),
+                URLQueryItem(name: "key", value: apiKey),
+            ]
+            guard let url = components?.url else {
+                throw CatalogError.invalidResponse
+            }
+
+            var request = URLRequest(url: url)
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let families = try parseOfficialCatalog(data)
+            try? persistCache(data, at: cacheURL)
+            return families
+        } catch {
+            if let cached = try? cachedOfficialCatalog(at: cacheURL) {
+                return cached
+            }
+            return try await loadUnofficialCatalog(forceRefresh: forceRefresh)
+        }
+    }
+
+    private static func loadUnofficialCatalog(forceRefresh: Bool) async throws -> [FontFamily] {
         let cacheURL = cacheFileURL
 
         if !forceRefresh, isFresh(cacheURL), let cached = try? cachedCatalog(at: cacheURL) {
@@ -107,6 +192,11 @@ enum GoogleFontsCatalog {
         return try parseCatalog(data)
     }
 
+    private static func cachedOfficialCatalog(at url: URL) throws -> [FontFamily] {
+        let data = try Data(contentsOf: url)
+        return try parseOfficialCatalog(data)
+    }
+
     private static func persistCache(_ data: Data, at url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
@@ -133,6 +223,11 @@ enum GoogleFontsCatalog {
         }
         let response = try JSONDecoder().decode(FontFamilyMetadataResponse.self, from: strippedData)
         return response.familyMetadataList.sorted { $0.family < $1.family }
+    }
+
+    private static func parseOfficialCatalog(_ data: Data) throws -> [FontFamily] {
+        let response = try JSONDecoder().decode(OfficialWebFontsResponse.self, from: data)
+        return response.items
     }
 
     /// Builds a css2 delivery URL for a family + set of weight/style combinations.

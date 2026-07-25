@@ -87,6 +87,17 @@ open "Font Installer.app"
 
 Use the **Check for updates** button in the app to check GitHub Releases for a newer download. Use the **Fontsource** tab to search and install fonts from Fontsource.
 
+### Refreshing the bundled Google Fonts popularity list
+
+The Mac app ships with `mac-app/Resources/google-fonts-popularity.json` so **Most Popular** works for everyone without requiring a Google API key. To refresh that bundled ranking from Google's official Web Fonts Developer API, run:
+
+```bash
+cd mac-app
+GOOGLE_FONTS_API_KEY="your_key_here" ./Scripts/update_google_fonts_popularity.py
+```
+
+Commit the updated `Resources/google-fonts-popularity.json` file. Do not commit your API key.
+
 This is the same app published in Releases — the [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow builds it (plus the Windows `.exe` and Linux binary via PyInstaller) automatically whenever a `v*` tag is pushed.
 
 ## License

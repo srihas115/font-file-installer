@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.notificationsEnabledKey) private var notificationsEnabled = false
     @AppStorage(AppSettings.appearanceModeKey) private var appearanceMode = AppearanceMode.dark.rawValue
     @AppStorage(AppSettings.installedFontsSortOrderKey) private var installedFontsSortOrder = InstalledFontsSortOrder.recentlyInstalled.rawValue
+    @AppStorage(AppSettings.googleFontsAPIKeyKey) private var googleFontsAPIKey = ""
 
     var body: some View {
         Form {
@@ -26,6 +27,9 @@ struct SettingsView: View {
                     Text(option.rawValue).tag(option.rawValue)
                 }
             }
+
+            SecureField("Google Fonts API key", text: $googleFontsAPIKey)
+                .textFieldStyle(.roundedBorder)
 
             Toggle("Install notifications", isOn: notificationsBinding)
         }

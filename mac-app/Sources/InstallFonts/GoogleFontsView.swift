@@ -10,6 +10,7 @@ struct GoogleFontsView: View {
 
     @State private var searchText = ""
     @AppStorage(AppSettings.defaultSortOrderKey) private var sortOrder = FontSortOrder.popular.rawValue
+    @AppStorage(AppSettings.googleFontsAPIKeyKey) private var googleFontsAPIKey = ""
     @State private var families: [FontFamily] = []
     @State private var isLoadingCatalog = false
     @State private var loadError: String?
@@ -25,26 +26,6 @@ struct GoogleFontsView: View {
 
     private let providerURL = URL(string: "https://fonts.google.com/")!
 
-    private let popularFamilies = [
-        "Roboto",
-        "Open Sans",
-        "Inter",
-        "Noto Sans",
-        "Lato",
-        "Montserrat",
-        "Poppins",
-        "Roboto Condensed",
-        "Source Sans 3",
-        "Oswald",
-        "Raleway",
-        "Merriweather",
-        "Noto Serif",
-        "Ubuntu",
-        "Playfair Display",
-        "Nunito",
-        "Rubik",
-    ]
-
     private var filteredFamilies: [FontFamily] {
         let base = searchText.isEmpty
             ? families
@@ -57,7 +38,10 @@ struct GoogleFontsView: View {
         case .alphabetical:
             return families.sorted { $0.family < $1.family }
         case .popular:
-            let rank = Dictionary(uniqueKeysWithValues: popularFamilies.enumerated().map { ($0.element, $0.offset) })
+            if AppSettings.googleFontsAPIKey != nil {
+                return families
+            }
+            let rank = GoogleFontsCatalog.bundledPopularityRank()
             return families.sorted {
                 (rank[$0.family] ?? Int.max, $0.family) < (rank[$1.family] ?? Int.max, $1.family)
             }
@@ -147,6 +131,9 @@ struct GoogleFontsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             await loadCatalog(forceRefresh: false)
+        }
+        .onChange(of: googleFontsAPIKey) { _ in
+            Task { await loadCatalog(forceRefresh: true) }
         }
     }
 

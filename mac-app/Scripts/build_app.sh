@@ -23,6 +23,7 @@ cp "Resources/GitHub_Invertocat_Black.svg" "$APP_DIR/Contents/Resources/GitHub_I
 cp "Resources/linkedin-svgrepo-com.svg" "$APP_DIR/Contents/Resources/linkedin-svgrepo-com.svg"
 cp "Resources/donate-heart-svgrepo-com.svg" "$APP_DIR/Contents/Resources/donate-heart-svgrepo-com.svg"
 cp "Resources/bmc-logo.svg" "$APP_DIR/Contents/Resources/bmc-logo.svg"
+cp "Resources/google-fonts-popularity.json" "$APP_DIR/Contents/Resources/google-fonts-popularity.json"
 
 echo "Signing $APP_DIR (ad-hoc)..."
 codesign --force --deep --sign - "$APP_DIR"
